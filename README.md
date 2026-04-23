@@ -1,4 +1,4 @@
-# ArtYug Flutter App
+# ArtYug Flutter Application
 
 This is the Flutter version of the ArtYug mobile application - a creative platform for artists, creators, and art lovers.
 
