@@ -29,7 +29,34 @@
       ]
     },
     {
-      "source": "/(.*\\.(js|css|woff|woff2|png|jpg|jpeg|gif|svg|ico|wasm))",
+      "source": "/main.dart.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/flutter.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/canvaskit/(.*)",
       "headers": [
         {
           "key": "Cache-Control",
