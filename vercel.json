@@ -1,9 +1,9 @@
 {
   "version": 2,
-  "buildCommand": "bash build.sh",
-  "outputDirectory": "build/web",
-  "installCommand": "echo 'Dependencies handled by build script'",
   "framework": null,
+  "installCommand": "echo 'Dependencies are handled by build.sh'",
+  "buildCommand": "bash ./build.sh",
+  "outputDirectory": "build/web",
   "rewrites": [
     {
       "source": "/(.*)",
@@ -23,29 +23,13 @@
           "value": "DENY"
         },
         {
-          "key": "X-XSS-Protection",
-          "value": "1; mode=block"
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
         }
       ]
     },
     {
-      "source": "/main.dart.js",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=31536000, immutable"
-        }
-      ]
-    },
-    {
-      "source": "/(.*)",
-      "has": [
-        {
-          "type": "header",
-          "key": "content-type",
-          "value": "(js|css|woff|woff2|png|jpg|jpeg|gif|svg|ico)"
-        }
-      ],
+      "source": "/(.*\\.(js|css|woff|woff2|png|jpg|jpeg|gif|svg|ico|wasm))",
       "headers": [
         {
           "key": "Cache-Control",
@@ -55,4 +39,3 @@
     }
   ]
 }
-
