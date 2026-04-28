@@ -92,3 +92,7 @@ coverage/
 .env
 .env.local
 .env.*.local
+
+# Local tool binaries (never commit)
+tools/*.exe
+tools/*.tar.gz
