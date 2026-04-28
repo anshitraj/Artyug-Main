@@ -3,8 +3,8 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GallerySelectorSheet — replaces the old "ShopSelectorSheet"
-// Terminology: "Shop" → "Gallery" throughout the app.
+// GallerySelectorSheet — keeps backward compatibility for ShopSelectorSheet.
+// User-facing copy now uses "Studio" while backend remains shops/shop_id.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Keep old class name as alias so existing code compiles unchanged
@@ -97,7 +97,7 @@ class _GallerySelectorSheetState extends State<GallerySelectorSheet> {
               const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('WHERE TO LIST?', style: TextStyle(color: _text, fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
                 SizedBox(height: 2),
-                Text('Choose where to publish this artwork', style: TextStyle(color: _muted, fontSize: 12)),
+                Text('Choose a studio for this artwork', style: TextStyle(color: _muted, fontSize: 12)),
               ]),
             ]),
           ),
@@ -109,7 +109,7 @@ class _GallerySelectorSheetState extends State<GallerySelectorSheet> {
             ? const Center(child: CircularProgressIndicator(color: _accent))
             : ListView(controller: ctrl, padding: const EdgeInsets.fromLTRB(16, 16, 16, 32), children: [
                 if (hasGalleries) ...[
-                  _label('YOUR GALLERIES'),
+                  _label('YOUR STUDIOS'),
                   const SizedBox(height: 8),
                   ..._galleries.map((g) => _GalleryTile(
                     gallery: g,
@@ -131,16 +131,16 @@ class _GallerySelectorSheetState extends State<GallerySelectorSheet> {
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       const Icon(Icons.collections_outlined, color: _accent, size: 32),
                       const SizedBox(height: 12),
-                      const Text("You don't have a gallery yet", style: TextStyle(color: _text, fontSize: 16, fontWeight: FontWeight.w800)),
+                      const Text("You don't have a studio yet", style: TextStyle(color: _text, fontSize: 16, fontWeight: FontWeight.w800)),
                       const SizedBox(height: 6),
-                      const Text("Create a gallery to sell your artwork and reach collectors. It's free.", style: TextStyle(color: _muted, fontSize: 13, height: 1.5)),
+                      const Text("Create a studio to sell your artwork and reach collectors. It's free.", style: TextStyle(color: _muted, fontSize: 13, height: 1.5)),
                       const SizedBox(height: 16),
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(
                           onPressed: _openCreate,
                           icon: const Icon(Icons.add, size: 18),
-                          label: const Text('Create Your Gallery', style: TextStyle(fontWeight: FontWeight.w700)),
+                          label: const Text('Create Your Studio', style: TextStyle(fontWeight: FontWeight.w700)),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: _accent,
                             foregroundColor: Colors.white,
@@ -169,8 +169,8 @@ class _GallerySelectorSheetState extends State<GallerySelectorSheet> {
                 _OptionTile(
                   icon: Icons.add_photo_alternate_outlined,
                   iconColor: _accent,
-                  title: 'Create New Gallery',
-                  subtitle: 'Set up a new gallery storefront',
+                  title: 'Create New Studio',
+                  subtitle: 'Set up a new studio storefront',
                   selected: false,
                   onTap: _openCreate,
                 ),
@@ -251,7 +251,7 @@ class _GalleryTile extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(gallery['name'] ?? 'Untitled Gallery', style: const TextStyle(color: _text, fontWeight: FontWeight.w700, fontSize: 14)),
+            Text(gallery['name'] ?? 'Untitled Studio', style: const TextStyle(color: _text, fontWeight: FontWeight.w700, fontSize: 14)),
             if (tags.isNotEmpty) ...[
               const SizedBox(height: 4),
               Wrap(spacing: 4, children: tags.take(3).map((t) => Container(

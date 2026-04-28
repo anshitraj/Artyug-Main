@@ -34,7 +34,7 @@ const _studioNavItems = [
       route: '/upload'),
   _NavItem(
       icon: Icons.store_rounded,
-      label: 'Shop',
+      label: 'Studios',
       route: '/shop'),
   _NavItem(
       icon: Icons.gavel_rounded,
@@ -173,7 +173,7 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
 
   Future<void> _handleUpload(BuildContext context) async {
     // ShopSelectorSheet returns:
-    //   Map<String,dynamic> → user chose a specific shop
+    //   Map<String,dynamic> → user chose a specific studio (backed by shop table)
     //   null               → user chose "Portfolio Only" (confirmed via button)
     //                        OR user swiped to dismiss (we navigate anyway)
     final result = await ShopSelectorSheet.show(context);

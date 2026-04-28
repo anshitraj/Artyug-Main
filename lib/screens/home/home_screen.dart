@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:postgrest/postgrest.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
+import '../../core/theme/app_colors.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/theme_provider.dart';
 
@@ -21,6 +21,7 @@ class _HomeScreenState extends State<HomeScreen>
   final SupabaseClient _supabase = Supabase.instance.client;
 
   List<Map<String, dynamic>> _threads = [];
+  List<Map<String, dynamic>> _onlineMembers = [];
   bool _loading = true;
   int _page = 0;
   bool _hasMore = true;
@@ -33,6 +34,7 @@ class _HomeScreenState extends State<HomeScreen>
   void initState() {
     super.initState();
     _fetchThreads(0, false);
+    _fetchOnlineMembers();
     _scrollController.addListener(_onScroll);
   }
 
@@ -62,19 +64,23 @@ class _HomeScreenState extends State<HomeScreen>
     await _fetchThreads(_page, true);
   }
 
+  Future<void> _fetchOnlineMembers() async {
+    try {
+      final response = await _supabase
+          .from('profiles')
+          .select('id, username, display_name, profile_picture_url, is_verified')
+          .order('updated_at', ascending: false)
+          .limit(30);
+      if (mounted) {
+        setState(() => _onlineMembers = List<Map<String, dynamic>>.from(response));
+      }
+    } catch (_) {}
+  }
+
   Future<void> _fetchThreads(int page, bool append) async {
     if (!append) setState(() => _loading = true);
 
     try {
-      final user = Provider.of<AuthProvider>(context, listen: false).user;
-      if (user == null) {
-        setState(() {
-          _threads = [];
-          _loading = false;
-        });
-        return;
-      }
-
       const pageSize = 20;
       final from = page * pageSize;
       final to = from + pageSize - 1;
@@ -108,6 +114,7 @@ class _HomeScreenState extends State<HomeScreen>
       final profilesData = List<Map<String, dynamic>>.from(profilesResponse);
       final profilesMap = {for (var p in profilesData) p['id']: p};
 
+      final currentUser = _supabase.auth.currentUser;
       final threadsWithStats = await Future.wait(
         threadsData.map((thread) async {
           final likesResponse = await _supabase
@@ -121,14 +128,15 @@ class _HomeScreenState extends State<HomeScreen>
               .eq('post_id', thread['id']);
 
           bool isLiked = false;
-          final userId = user.id;
-          final userLikeResponse = await _supabase
-              .from('post_likes')
-              .select('id')
-              .eq('post_id', thread['id'])
-              .eq('user_id', userId)
-              .maybeSingle();
-          isLiked = userLikeResponse != null;
+          if (currentUser != null) {
+            final userLikeResponse = await _supabase
+                .from('post_likes')
+                .select('id')
+                .eq('post_id', thread['id'])
+                .eq('user_id', currentUser.id)
+                .maybeSingle();
+            isLiked = userLikeResponse != null;
+          }
 
           return {
             ...thread,
@@ -160,28 +168,6 @@ class _HomeScreenState extends State<HomeScreen>
         _loadingMore = false;
         _hasMore = false;
       });
-    }
-  }
-
-  Future<void> _ensureProfileExists(String userId) async {
-    try {
-      final profileCheck = await _supabase
-          .from('profiles')
-          .select('id')
-          .eq('id', userId)
-          .maybeSingle();
-
-      if (profileCheck == null) {
-        await _supabase.from('profiles').insert({
-          'id': userId,
-          'username': 'user_${userId.substring(0, 8)}',
-          'display_name': 'User',
-          'created_at': DateTime.now().toIso8601String(),
-          'updated_at': DateTime.now().toIso8601String(),
-        });
-      }
-    } catch (e) {
-      debugPrint('Profile check/creation error: $e');
     }
   }
 
@@ -316,7 +302,7 @@ class _HomeScreenState extends State<HomeScreen>
     final isDarkMode = themeProvider.isDarkMode;
 
     return Scaffold(
-      backgroundColor: isDarkMode ? Colors.black : Colors.white,
+      backgroundColor: AppColors.canvas(context),
       appBar: _buildRetroAppBar(user, isDarkMode),
       body: Stack(
         children: [
@@ -326,9 +312,9 @@ class _HomeScreenState extends State<HomeScreen>
               gradient: isDarkMode
                   ? const LinearGradient(
                       colors: [
-                        Color(0xFF0f0c29),
-                        Color(0xFF302b63),
-                        Color(0xFF24243e),
+                        Color(0xFF090E18),
+                        Color(0xFF111A2B),
+                        Color(0xFF1A1324),
                       ],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
@@ -346,35 +332,242 @@ class _HomeScreenState extends State<HomeScreen>
           ),
 
           _loading
-              ? Center(
-                  child: CircularProgressIndicator(color: Colors.purpleAccent),
+              ? const Center(
+                  child: CircularProgressIndicator(color: Color(0xFFFF5A1F)),
                 )
-              : _threads.isEmpty
-                  ? _buildEmptyRetroState(isDarkMode)
-                  : RefreshIndicator(
-                      onRefresh: () => _fetchThreads(0, false),
-                      color: Colors.purpleAccent,
-                      child: ListView.builder(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.only(bottom: 120),
-                        itemCount: _threads.length + (_loadingMore ? 1 : 0),
-                        itemBuilder: (context, index) {
-                          if (index == _threads.length) {
-                            return Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Center(
-                                child: CircularProgressIndicator(
-                                  color: Colors.purpleAccent,
+              : RefreshIndicator(
+                  onRefresh: () async {
+                    await _fetchThreads(0, false);
+                    await _fetchOnlineMembers();
+                  },
+                  color: const Color(0xFFFF5A1F),
+                  child: ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.only(bottom: 120),
+                    itemCount: _threads.length + 2 + (_loadingMore ? 1 : 0),
+                    itemBuilder: (context, index) {
+                      // Slot 0 — Online Members strip
+                      if (index == 0) return _buildOnlineMembersStrip(isDarkMode);
+                      // Slot 1 — section header
+                      if (index == 1) return _buildFeedHeader(isDarkMode);
+                      // Loading more spinner
+                      final postIndex = index - 2;
+                      if (postIndex == _threads.length) {
+                        return _loadingMore
+                            ? const Padding(
+                                padding: EdgeInsets.all(16),
+                                child: Center(
+                                  child: CircularProgressIndicator(
+                                    color: Color(0xFFFF5A1F),
+                                  ),
                                 ),
-                              ),
-                            );
-                          }
-                          return _buildRetroThreadCard(_threads[index], isDarkMode);
-                        },
-                      ),
-                    ),
+                              )
+                            : const SizedBox.shrink();
+                      }
+                      if (postIndex < _threads.length) {
+                        return _FeedReveal(
+                          index: postIndex,
+                          child: _buildRetroThreadCard(_threads[postIndex], isDarkMode),
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  ),
+                ),
 
           _buildFloatingMenu(),
+        ],
+      ),
+    );
+  }
+
+  // ── Online Members strip ─────────────────────────────────────────────────────
+
+  Widget _buildOnlineMembersStrip(bool isDarkMode) {
+    final bg = isDarkMode ? const Color(0xFF0B101C) : Colors.white;
+    final textColor = isDarkMode ? Colors.white : const Color(0xFF1f2937);
+    final subColor = isDarkMode ? Colors.white54 : const Color(0xFF6b7280);
+
+    return Container(
+      color: bg,
+      padding: const EdgeInsets.fromLTRB(16, 16, 0, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Online Members',
+                style: TextStyle(
+                  color: textColor,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(right: 16),
+                child: GestureDetector(
+                  onTap: () => context.push('/explore'),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF5A1F),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      'See More',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 74,
+            child: _onlineMembers.isEmpty
+                ? ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: 12,
+                    separatorBuilder: (_, __) => const SizedBox(width: 14),
+                    itemBuilder: (_, __) => Column(
+                      children: [
+                        Container(
+                          width: 46,
+                          height: 46,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isDarkMode
+                                ? Colors.white12
+                                : Colors.grey.shade200,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          width: 36,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: isDarkMode
+                                ? Colors.white12
+                                : Colors.grey.shade200,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _onlineMembers.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 14),
+                    itemBuilder: (context, i) {
+                      final m = _onlineMembers[i];
+                      final pic = m['profile_picture_url'] as String?;
+                      final name = (m['display_name'] as String?)?.isNotEmpty == true
+                          ? m['display_name'] as String
+                          : (m['username'] as String?) ?? '?';
+                      final shortName =
+                          name.length > 7 ? '${name.substring(0, 6)}…' : name;
+                      final isVerified = m['is_verified'] == true;
+
+                      return GestureDetector(
+                        onTap: () =>
+                            context.push('/public-profile/${m['id']}'),
+                        child: Column(
+                          children: [
+                            Stack(
+                              children: [
+                                CircleAvatar(
+                                  radius: 23,
+                                  backgroundColor:
+                                      const Color(0xFFFF5A1F).withValues(alpha: 0.18),
+                                  backgroundImage: (pic != null &&
+                                          pic.isNotEmpty)
+                                      ? CachedNetworkImageProvider(pic)
+                                      : null,
+                                  child: (pic == null || pic.isEmpty)
+                                      ? Text(
+                                          name[0].toUpperCase(),
+                                          style: const TextStyle(
+                                            color: Color(0xFFFF5A1F),
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        )
+                                      : null,
+                                ),
+                                Positioned(
+                                  right: 0,
+                                  bottom: 0,
+                                  child: Container(
+                                    width: 12,
+                                    height: 12,
+                                    decoration: BoxDecoration(
+                                      color: isVerified
+                                          ? const Color(0xFF22c55e)
+                                          : const Color(0xFF94a3b8),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: bg,
+                                        width: 2,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              shortName,
+                              style: TextStyle(
+                                color: subColor,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeedHeader(bool isDarkMode) {
+    final textColor = isDarkMode ? Colors.white : const Color(0xFF1f2937);
+    final subColor = isDarkMode ? Colors.white54 : const Color(0xFF6b7280);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: Row(
+        children: [
+          Text(
+            'Community Feed',
+            style: TextStyle(
+              color: textColor,
+              fontWeight: FontWeight.w700,
+              fontSize: 15,
+            ),
+          ),
+          const SizedBox(width: 8),
+          if (_threads.isEmpty)
+            Text(
+              '— share the first artwork!',
+              style: TextStyle(color: subColor, fontSize: 12),
+            )
+          else
+            Text(
+              '${_threads.length} post${_threads.length == 1 ? '' : 's'}',
+              style: TextStyle(color: subColor, fontSize: 12),
+            ),
         ],
       ),
     );
@@ -384,8 +577,8 @@ class _HomeScreenState extends State<HomeScreen>
     return AppBar(
       elevation: 0,
       backgroundColor: isDarkMode
-          ? Colors.black.withOpacity(0.4)
-          : Colors.white.withOpacity(0.9),
+          ? Colors.black.withValues(alpha: 0.4)
+          : Colors.white.withValues(alpha: 0.9),
       centerTitle: true,
       title: Text(
         'Artयुग',
@@ -401,7 +594,7 @@ class _HomeScreenState extends State<HomeScreen>
               child: Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: CircleAvatar(
-                  backgroundColor: Colors.purpleAccent,
+                  backgroundColor: AppColors.primary,
                   child: user.userMetadata?['avatar_url'] != null
                       ? ClipOval(
                           child: CachedNetworkImage(
@@ -436,25 +629,25 @@ class _HomeScreenState extends State<HomeScreen>
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: Colors.purpleAccent.withOpacity(0.4),
+          color: AppColors.primary.withValues(alpha: 0.4),
           width: 1.5,
         ),
         gradient: LinearGradient(
           colors: isDarkMode
               ? [
-                  Colors.white.withOpacity(0.06),
-                  Colors.white.withOpacity(0.02),
+                  Colors.white.withValues(alpha: 0.06),
+                  Colors.white.withValues(alpha: 0.02),
                 ]
               : [
-                  Colors.white.withOpacity(0.9),
-                  Colors.white.withOpacity(0.95),
+                  Colors.white.withValues(alpha: 0.9),
+                  Colors.white.withValues(alpha: 0.95),
                 ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.purpleAccent.withOpacity(isDarkMode ? 0.25 : 0.15),
+            color: AppColors.primary.withValues(alpha: isDarkMode ? 0.25 : 0.15),
             blurRadius: 10,
             spreadRadius: 1,
           ),
@@ -545,7 +738,7 @@ class _HomeScreenState extends State<HomeScreen>
             }
           },
           child: CircleAvatar(
-            backgroundColor: Colors.purpleAccent,
+            backgroundColor: AppColors.primary,
             backgroundImage: profilePicUrl != null && profilePicUrl is String && profilePicUrl.isNotEmpty
                 ? CachedNetworkImageProvider(profilePicUrl)
                 : null,
@@ -590,7 +783,7 @@ class _HomeScreenState extends State<HomeScreen>
             IconButton(
               icon: Icon(
                 thread['is_liked'] ? Icons.favorite : Icons.favorite_border,
-                color: Colors.pinkAccent,
+                color: AppColors.primary,
               ),
               onPressed: () => _handleLikeThread(thread['id']),
             ),
@@ -637,7 +830,7 @@ class _HomeScreenState extends State<HomeScreen>
             const SizedBox(height: 12),
           ],
           FloatingActionButton(
-            backgroundColor: Colors.purpleAccent,
+            backgroundColor: AppColors.primary,
             onPressed: _toggleMenu,
             child: Icon(
               _menuVisible ? Icons.close : Icons.menu,
@@ -666,16 +859,16 @@ class _HomeScreenState extends State<HomeScreen>
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.08),
+          color: Colors.white.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: Colors.purpleAccent.withOpacity(0.4),
+          color: AppColors.primary.withValues(alpha: 0.4),
           ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: Colors.purpleAccent, size: 18),
+            Icon(icon, color: AppColors.primary, size: 18),
             const SizedBox(width: 8),
             Text(
               label,
@@ -687,31 +880,6 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildEmptyRetroState(bool isDarkMode) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Text("🎛️", style: TextStyle(fontSize: 60)),
-          const SizedBox(height: 16),
-          Text(
-            "No threads yet",
-            style: TextStyle(
-              fontSize: 20,
-              color: isDarkMode ? Colors.white : const Color(0xFF1f2937),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            "Start the retro vibe!",
-            style: TextStyle(
-              color: isDarkMode ? Colors.white70 : const Color(0xFF6b7280),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _CommentDialog extends StatefulWidget {
@@ -863,7 +1031,7 @@ class _CommentDialogState extends State<_CommentDialog> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      backgroundColor: widget.isDarkMode ? const Color(0xFF24243e) : Colors.white,
+      backgroundColor: widget.isDarkMode ? const Color(0xFF121A2A) : Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
       ),
@@ -879,8 +1047,8 @@ class _CommentDialogState extends State<_CommentDialog> {
                 border: Border(
                   bottom: BorderSide(
                     color: widget.isDarkMode
-                        ? Colors.white.withOpacity(0.1)
-                        : Colors.grey.withOpacity(0.2),
+                        ? Colors.white.withValues(alpha: 0.1)
+                        : Colors.grey.withValues(alpha: 0.2),
                   ),
                 ),
               ),
@@ -912,7 +1080,7 @@ class _CommentDialogState extends State<_CommentDialog> {
               child: _loadingComments
                   ? const Center(
                       child: CircularProgressIndicator(
-                        color: Colors.purpleAccent,
+                        color: AppColors.primary,
                       ),
                     )
                   : _comments.isEmpty
@@ -944,7 +1112,7 @@ class _CommentDialogState extends State<_CommentDialog> {
                                 children: [
                                   CircleAvatar(
                                     radius: 18,
-                                    backgroundColor: Colors.purpleAccent,
+                                    backgroundColor: AppColors.primary,
                                     backgroundImage: author?['profile_picture_url'] != null
                                         ? CachedNetworkImageProvider(
                                             author!['profile_picture_url'],
@@ -1012,8 +1180,8 @@ class _CommentDialogState extends State<_CommentDialog> {
                 border: Border(
                   top: BorderSide(
                     color: widget.isDarkMode
-                        ? Colors.white.withOpacity(0.1)
-                        : Colors.grey.withOpacity(0.2),
+                        ? Colors.white.withValues(alpha: 0.1)
+                        : Colors.grey.withValues(alpha: 0.2),
                   ),
                 ),
               ),
@@ -1034,8 +1202,8 @@ class _CommentDialogState extends State<_CommentDialog> {
                         ),
                         filled: true,
                         fillColor: widget.isDarkMode
-                            ? Colors.white.withOpacity(0.1)
-                            : Colors.grey.withOpacity(0.1),
+                            ? Colors.white.withValues(alpha: 0.1)
+                            : Colors.grey.withValues(alpha: 0.1),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(25),
                           borderSide: BorderSide.none,
@@ -1059,10 +1227,10 @@ class _CommentDialogState extends State<_CommentDialog> {
                             height: 20,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: Colors.purpleAccent,
+                              color: AppColors.primary,
                             ),
                           )
-                        : const Icon(Icons.send, color: Colors.purpleAccent),
+                        : const Icon(Icons.send, color: AppColors.primary),
                   ),
                 ],
               ),
@@ -1070,6 +1238,33 @@ class _CommentDialogState extends State<_CommentDialog> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _FeedReveal extends StatelessWidget {
+  final int index;
+  final Widget child;
+
+  const _FeedReveal({required this.index, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final delay = (index.clamp(0, 8)) * 28;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: Duration(milliseconds: 260 + delay),
+      curve: Curves.easeOutCubic,
+      child: child,
+      builder: (context, value, c) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, (1 - value) * 14),
+            child: c,
+          ),
+        );
+      },
     );
   }
 }

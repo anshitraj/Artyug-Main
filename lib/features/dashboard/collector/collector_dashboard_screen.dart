@@ -45,24 +45,29 @@ class _CollectorDashboardScreenState extends State<CollectorDashboardScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
-      body: Consumer<DashboardProvider>(
-        builder: (context, dash, _) {
-          if (dash.loading && dash.stats == null) {
-            return const Center(
-              child: CircularProgressIndicator(color: AppColors.primary),
-            );
-          }
-          if (dash.error != null && dash.stats == null) {
-            return Center(
-              child: Text(
-                dash.error!,
-                style: const TextStyle(color: AppColors.error),
-              ),
-            );
-          }
-          return _buildContent(context, dash);
-        },
+      backgroundColor: Colors.transparent,
+      body: Stack(
+        children: [
+          const _CollectorBackdrop(),
+          Consumer<DashboardProvider>(
+            builder: (context, dash, _) {
+              if (dash.loading && dash.stats == null) {
+                return const Center(
+                  child: CircularProgressIndicator(color: AppColors.primary),
+                );
+              }
+              if (dash.error != null && dash.stats == null) {
+                return Center(
+                  child: Text(
+                    dash.error!,
+                    style: const TextStyle(color: AppColors.error),
+                  ),
+                );
+              }
+              return _buildContent(context, dash);
+            },
+          ),
+        ],
       ),
     );
   }
@@ -76,13 +81,13 @@ class _CollectorDashboardScreenState extends State<CollectorDashboardScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (context.canPop())
+        if (Navigator.of(context).canPop())
           Padding(
             padding: const EdgeInsets.fromLTRB(4, 8, 8, 0),
             child: Align(
               alignment: Alignment.centerLeft,
               child: IconButton(
-                onPressed: () => context.pop(),
+                onPressed: () => Navigator.of(context).pop(),
                 icon: Icon(
                   Icons.arrow_back_rounded,
                   color: AppColors.textPrimaryOf(context),
@@ -102,9 +107,45 @@ class _CollectorDashboardScreenState extends State<CollectorDashboardScreen>
           certificates: s.certificatesCount,
           showDemoWallet: isDemo,
         ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _CollectorQuickAction(
+                icon: Icons.storefront_outlined,
+                label: 'Marketplace',
+                onTap: () => context.push('/shop'),
+              ),
+              _CollectorQuickAction(
+                icon: Icons.gavel_rounded,
+                label: 'Bid History',
+                onTap: () => context.push('/auctions'),
+              ),
+              _CollectorQuickAction(
+                icon: Icons.verified_user_outlined,
+                label: 'Verify',
+                onTap: () => context.push('/authenticity-center'),
+              ),
+              _CollectorQuickAction(
+                icon: Icons.person_search_outlined,
+                label: 'Artists',
+                onTap: () => context.push('/search?q=artist'),
+              ),
+            ],
+          ),
+        ),
         Container(
           decoration: BoxDecoration(
-            color: AppColors.surfaceOf(context),
+            gradient: LinearGradient(
+              colors: [
+                AppColors.surfaceOf(context).withValues(alpha: 0.86),
+                AppColors.surfaceMutedOf(context).withValues(alpha: 0.72),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
             border: Border(
               bottom: BorderSide(color: border),
             ),
@@ -115,18 +156,19 @@ class _CollectorDashboardScreenState extends State<CollectorDashboardScreen>
             unselectedLabelColor: AppColors.textSecondaryOf(context),
             indicatorColor: AppColors.primary,
             indicatorWeight: 3,
-            indicatorSize: TabBarIndicatorSize.label,
+            indicatorSize: TabBarIndicatorSize.tab,
+            dividerColor: Colors.transparent,
             labelStyle: const TextStyle(
               fontWeight: FontWeight.w800,
               fontSize: 13,
-              letterSpacing: 0.2,
+              letterSpacing: 0.4,
             ),
             unselectedLabelStyle: const TextStyle(
               fontWeight: FontWeight.w600,
               fontSize: 13,
             ),
             tabs: const [
-              Tab(text: 'Items'),
+              Tab(text: 'Collection'),
               Tab(text: 'Vault'),
               Tab(text: 'Saved'),
             ],
@@ -143,6 +185,125 @@ class _CollectorDashboardScreenState extends State<CollectorDashboardScreen>
           ),
         ),
       ],
+    );
+  }
+}
+
+class _CollectorQuickAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _CollectorQuickAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: Ink(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              AppColors.surfaceOf(context).withValues(alpha: 0.88),
+              AppColors.surfaceMutedOf(context).withValues(alpha: 0.74),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: AppColors.borderOf(context)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.18),
+              blurRadius: 14,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: AppColors.primary),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: AppColors.textSecondaryOf(context),
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CollectorBackdrop extends StatelessWidget {
+  const _CollectorBackdrop();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(color: AppColors.background),
+      child: Stack(
+        children: [
+          Positioned(
+            top: -110,
+            right: -80,
+            child: _BackdropOrb(
+              size: 300,
+              color: AppColors.primary.withValues(alpha: 0.2),
+            ),
+          ),
+          Positioned(
+            top: 220,
+            left: -120,
+            child: _BackdropOrb(
+              size: 320,
+              color: const Color(0xFF3183FF).withValues(alpha: 0.14),
+            ),
+          ),
+          Positioned(
+            bottom: -100,
+            right: 20,
+            child: _BackdropOrb(
+              size: 250,
+              color: const Color(0xFF16C79A).withValues(alpha: 0.1),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BackdropOrb extends StatelessWidget {
+  final double size;
+  final Color color;
+
+  const _BackdropOrb({required this.size, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            colors: [color, color.withValues(alpha: 0)],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -176,9 +337,9 @@ class _PortfolioHero extends StatelessWidget {
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            Color(0xFF12081F),
+            Color(0xFF1A0A00),
+            Color(0xFF160C1E),
             Color(0xFF0E1424),
-            AppColors.surface,
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -201,14 +362,14 @@ class _PortfolioHero extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: AppColors.borderStrong.withValues(alpha: 0.85),
-                      width: 2,
+                      color: AppColors.primary.withValues(alpha: 0.55),
+                      width: 2.5,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.45),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
+                        color: AppColors.primary.withValues(alpha: 0.25),
+                        blurRadius: 18,
+                        offset: const Offset(0, 6),
                       ),
                     ],
                   ),
@@ -246,35 +407,36 @@ class _PortfolioHero extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        'Collector portfolio',
-                        style: TextStyle(
-                          color: AppColors.textSecondaryOf(context),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
+                      Row(children: const [
+                        Icon(Icons.diamond_outlined, color: AppColors.primary, size: 13),
+                        SizedBox(width: 4),
+                        Text('Art Collector', style: TextStyle(
+                          color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w700)),
+                      ]),
                       const SizedBox(height: 14),
                       Row(
                         children: [
                           Expanded(
                             child: _HeroStatChip(
-                              label: 'Total spent',
+                              label: 'Collection Value',
                               value: '₹${totalSpent.toStringAsFixed(0)}',
+                              icon: Icons.monetization_on_outlined,
                             ),
                           ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: _HeroStatChip(
-                              label: 'Owned',
+                              label: 'Artworks Owned',
                               value: '$owned',
+                              icon: Icons.image_outlined,
                             ),
                           ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: _HeroStatChip(
-                              label: 'Certs',
+                              label: 'Artist Support',
                               value: '$certificates',
+                              icon: Icons.handshake_outlined,
                             ),
                           ),
                         ],
@@ -400,40 +562,62 @@ class _PortfolioHero extends StatelessWidget {
 class _HeroStatChip extends StatelessWidget {
   final String label;
   final String value;
+  final IconData icon;
 
-  const _HeroStatChip({required this.label, required this.value});
+  const _HeroStatChip({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.28),
-        borderRadius: BorderRadius.circular(12),
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withValues(alpha: 0.07),
+            Colors.white.withValues(alpha: 0.03),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppColors.borderOf(context).withValues(alpha: 0.9),
+          color: AppColors.borderOf(context).withValues(alpha: 0.6),
         ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            value,
-            style: const TextStyle(
-              color: AppColors.primary,
-              fontWeight: FontWeight.w900,
-              fontSize: 16,
-              letterSpacing: -0.3,
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
             ),
+            child: Icon(icon, color: AppColors.primary, size: 18),
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 10),
           Text(
             label,
             style: TextStyle(
               color: AppColors.textTertiaryOf(context),
               fontSize: 10,
               fontWeight: FontWeight.w600,
-              letterSpacing: 0.2,
+              letterSpacing: 0.3,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            style: const TextStyle(
+              color: AppColors.primary,
+              fontWeight: FontWeight.w900,
+              fontSize: 15,
+              letterSpacing: -0.3,
             ),
           ),
         ],

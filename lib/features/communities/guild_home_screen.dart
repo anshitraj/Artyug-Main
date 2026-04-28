@@ -46,7 +46,7 @@ class _GuildHomeScreenState extends State<GuildHomeScreen>
       // Fetch all communities
       final allRes = await Supabase.instance.client
           .from('communities')
-          .select('id, name, description, member_count, created_at')
+          .select('*')
           .order('member_count', ascending: false)
           .limit(30);
 
@@ -64,9 +64,8 @@ class _GuildHomeScreenState extends State<GuildHomeScreen>
             .select('community_id')
             .eq('user_id', userId);
 
-        final myIds = (myRes as List)
-            .map((j) => j['community_id'] as String)
-            .toSet();
+        final myIds =
+            (myRes as List).map((j) => j['community_id'] as String).toSet();
 
         mine = all.where((g) => myIds.contains(g.id)).toList();
       }
@@ -104,13 +103,11 @@ class _GuildHomeScreenState extends State<GuildHomeScreen>
             .eq('community_id', guild.id);
         setState(() => _myGuilds.removeWhere((g) => g.id == guild.id));
       } else {
-        await Supabase.instance.client
-            .from('community_members')
-            .insert({
-              'user_id': userId,
-              'community_id': guild.id,
-              'role': 'member',
-            });
+        await Supabase.instance.client.from('community_members').insert({
+          'user_id': userId,
+          'community_id': guild.id,
+          'role': 'member',
+        });
         setState(() => _myGuilds.add(guild));
       }
     } catch (e) {
@@ -176,9 +173,12 @@ class _GuildHomeScreenState extends State<GuildHomeScreen>
         ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.primary))
           : _error != null
-              ? Center(child: Text(_error!, style: const TextStyle(color: AppColors.error)))
+              ? Center(
+                  child: Text(_error!,
+                      style: const TextStyle(color: AppColors.error)))
               : TabBarView(
                   controller: _tabs,
                   children: [
@@ -310,9 +310,7 @@ class _GuildCard extends StatelessWidget {
               ),
               child: Center(
                 child: Text(
-                  guild.name.isNotEmpty
-                      ? guild.name[0].toUpperCase()
-                      : 'G',
+                  guild.name.isNotEmpty ? guild.name[0].toUpperCase() : 'G',
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w900,
@@ -379,8 +377,51 @@ class _GuildCard extends StatelessWidget {
                         style: const TextStyle(
                             color: AppColors.textTertiary, fontSize: 11),
                       ),
+                      if (guild.postCount > 0) ...[
+                        const SizedBox(width: 10),
+                        Icon(Icons.forum_outlined,
+                            size: 12, color: AppColors.textTertiary),
+                        const SizedBox(width: 3),
+                        Text(
+                          '${guild.postCount} posts',
+                          style: const TextStyle(
+                              color: AppColors.textTertiary, fontSize: 11),
+                        ),
+                      ],
                     ],
                   ),
+                  if (guild.topics.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        _MetaChip(
+                          label: guild.topics.first,
+                          color: AppColors.primary.withOpacity(0.14),
+                          textColor: AppColors.primary,
+                        ),
+                        if (guild.topics.length > 1)
+                          _MetaChip(
+                            label: guild.topics[1],
+                            color: AppColors.surfaceHigh,
+                            textColor: AppColors.textSecondary,
+                          ),
+                        _MetaChip(
+                          label: '${guild.channelCount} channels',
+                          color: AppColors.surfaceHigh,
+                          textColor: AppColors.textSecondary,
+                          icon: Icons.tag_rounded,
+                        ),
+                        _MetaChip(
+                          label: '${guild.ruleCount} rules',
+                          color: AppColors.surfaceHigh,
+                          textColor: AppColors.textSecondary,
+                          icon: Icons.gavel_rounded,
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -390,12 +431,10 @@ class _GuildCard extends StatelessWidget {
                 TextButton(
                   onPressed: onJoin,
                   style: TextButton.styleFrom(
-                    backgroundColor: isJoined
-                        ? AppColors.surfaceHigh
-                        : AppColors.primary,
-                    foregroundColor: isJoined
-                        ? AppColors.textSecondary
-                        : Colors.white,
+                    backgroundColor:
+                        isJoined ? AppColors.surfaceHigh : AppColors.primary,
+                    foregroundColor:
+                        isJoined ? AppColors.textSecondary : Colors.white,
                     padding:
                         const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     shape: RoundedRectangleBorder(
@@ -486,47 +525,186 @@ class _GuildCard extends StatelessWidget {
 
 // ─── Model ────────────────────────────────────────────────────────────────────
 
+class _MetaChip extends StatelessWidget {
+  final String label;
+  final Color color;
+  final Color textColor;
+  final IconData? icon;
+
+  const _MetaChip({
+    required this.label,
+    required this.color,
+    required this.textColor,
+    this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 10, color: textColor),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            label,
+            style: TextStyle(
+              color: textColor,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class GuildModel {
   final String id;
   final String name;
   final String? description;
   final int memberCount;
+  final int postCount;
+  final int channelCount;
+  final int ruleCount;
+  final List<String> topics;
 
   const GuildModel({
     required this.id,
     required this.name,
     this.description,
     required this.memberCount,
+    this.postCount = 0,
+    this.channelCount = 3,
+    this.ruleCount = 4,
+    this.topics = const [],
   });
 
-  factory GuildModel.fromJson(Map<String, dynamic> json) => GuildModel(
-        id: json['id'] as String,
-        name: json['name'] as String? ?? 'Guild',
-        description: json['description'] as String?,
-        memberCount: json['member_count'] as int? ?? 0,
-      );
+  factory GuildModel.fromJson(Map<String, dynamic> json) {
+    final name = json['name'] as String? ?? 'Guild';
+    final presets = _GuildPresets.byName(name);
+    final metadata = (json['metadata'] is Map<String, dynamic>)
+        ? json['metadata'] as Map<String, dynamic>
+        : const <String, dynamic>{};
+    final topics = _toStringList(metadata['topics']);
+
+    return GuildModel(
+      id: json['id'] as String,
+      name: name,
+      description: json['description'] as String? ?? presets.description,
+      memberCount: json['member_count'] as int? ?? 0,
+      postCount: json['post_count'] as int? ??
+          (metadata['post_count'] as int? ?? presets.postCount),
+      channelCount: json['channel_count'] as int? ??
+          (metadata['channel_count'] as int? ?? presets.channelCount),
+      ruleCount: json['rule_count'] as int? ??
+          (metadata['rule_count'] as int? ?? presets.ruleCount),
+      topics: topics.isNotEmpty ? topics : presets.topics,
+    );
+  }
+
+  static List<String> _toStringList(dynamic raw) {
+    if (raw is! List) return const [];
+    return raw
+        .whereType<String>()
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+  }
 
   static List<GuildModel> demoData() => const [
         GuildModel(
           id: 'guild-contemporary',
           name: 'Artyug Community',
-          description:
-              'An iconic community curated thoughtfully just for you.',
+          description: 'An iconic community curated thoughtfully just for you.',
           memberCount: 14,
+          postCount: 74,
+          channelCount: 6,
+          ruleCount: 5,
+          topics: ['Exhibitions', 'Artist Growth'],
         ),
         GuildModel(
           id: 'guild-digital',
           name: 'Motojojo',
-          description:
-              'Creators and collectors in the Motojojo circle.',
+          description: 'Creators and collectors in the Motojojo circle.',
           memberCount: 12,
+          postCount: 52,
+          channelCount: 5,
+          ruleCount: 4,
+          topics: ['Street Culture', 'Collabs'],
         ),
         GuildModel(
           id: 'guild-traditional',
           name: 'Webcoin Labs',
-          description:
-              'Webcoin Labs guild — experiments, drops, and dialogue.',
+          description: 'Webcoin Labs guild - experiments, drops, and dialogue.',
           memberCount: 10,
+          postCount: 31,
+          channelCount: 7,
+          ruleCount: 6,
+          topics: ['Onchain Drops', 'Web3 Art'],
         ),
       ];
+}
+
+class _GuildPresets {
+  final String description;
+  final int postCount;
+  final int channelCount;
+  final int ruleCount;
+  final List<String> topics;
+
+  const _GuildPresets({
+    required this.description,
+    required this.postCount,
+    required this.channelCount,
+    required this.ruleCount,
+    required this.topics,
+  });
+
+  static _GuildPresets byName(String? name) {
+    final n = (name ?? '').toLowerCase();
+    if (n.contains('artyug')) {
+      return const _GuildPresets(
+        description: 'An iconic community curated thoughtfully just for you.',
+        postCount: 74,
+        channelCount: 6,
+        ruleCount: 5,
+        topics: ['Exhibitions', 'Artist Growth'],
+      );
+    }
+    if (n.contains('motojojo')) {
+      return const _GuildPresets(
+        description: 'Creators and collectors in the Motojojo circle.',
+        postCount: 52,
+        channelCount: 5,
+        ruleCount: 4,
+        topics: ['Street Culture', 'Collabs'],
+      );
+    }
+    if (n.contains('webcoin')) {
+      return const _GuildPresets(
+        description: 'Webcoin Labs guild - experiments, drops, and dialogue.',
+        postCount: 31,
+        channelCount: 7,
+        ruleCount: 6,
+        topics: ['Onchain Drops', 'Web3 Art'],
+      );
+    }
+
+    return const _GuildPresets(
+      description: 'An Artyug creative guild.',
+      postCount: 0,
+      channelCount: 3,
+      ruleCount: 4,
+      topics: ['Community'],
+    );
+  }
 }

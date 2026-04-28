@@ -32,6 +32,8 @@ class _SearchScreenState extends State<SearchScreen>
   // Results
   List<Map<String, dynamic>> _artworks = [];
   List<Map<String, dynamic>> _artists = [];
+  List<Map<String, dynamic>> _shops = [];
+  List<Map<String, dynamic>> _collections = [];
   List<Map<String, dynamic>> _posts = [];
 
   bool _searching = false;
@@ -45,7 +47,7 @@ class _SearchScreenState extends State<SearchScreen>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 3, vsync: this);
+    _tabs = TabController(length: 5, vsync: this);
     if (widget.initialQuery != null && widget.initialQuery!.trim().isNotEmpty) {
       _controller.text = widget.initialQuery!.trim();
       WidgetsBinding.instance.addPostFrameCallback((_) => _runSearch());
@@ -88,6 +90,8 @@ class _SearchScreenState extends State<SearchScreen>
       setState(() {
         _artworks = [];
         _artists = [];
+        _shops = [];
+        _collections = [];
         _posts = [];
         _hasSearched = false;
         _searching = false;
@@ -101,6 +105,8 @@ class _SearchScreenState extends State<SearchScreen>
 
     List<Map<String, dynamic>> artworks = [];
     List<Map<String, dynamic>> artists = [];
+    List<Map<String, dynamic>> shops = [];
+    List<Map<String, dynamic>> collections = [];
     List<Map<String, dynamic>> posts = [];
     final errors = <String>[];
 
@@ -118,6 +124,18 @@ class _SearchScreenState extends State<SearchScreen>
         errors.add('Artists: $e');
       }
       try {
+        shops = await _searchShops(pattern);
+      } catch (e, st) {
+        debugPrint('[SearchScreen] shops: $e\n$st');
+        errors.add('Shops: $e');
+      }
+      try {
+        collections = await _searchCollections(pattern);
+      } catch (e, st) {
+        debugPrint('[SearchScreen] collections: $e\n$st');
+        errors.add('Collections: $e');
+      }
+      try {
         posts = await _searchPosts(pattern);
       } catch (e, st) {
         debugPrint('[SearchScreen] posts: $e\n$st');
@@ -128,6 +146,8 @@ class _SearchScreenState extends State<SearchScreen>
         setState(() {
           _artworks = artworks;
           _artists = artists;
+          _shops = shops;
+          _collections = collections;
           _posts = posts;
           _searching = false;
           _hasSearched = true;
@@ -230,7 +250,32 @@ class _SearchScreenState extends State<SearchScreen>
     return List<Map<String, dynamic>>.from(res as List);
   }
 
-  int get _totalResults => _artworks.length + _artists.length + _posts.length;
+  Future<List<Map<String, dynamic>>> _searchShops(String pattern) async {
+    final res = await _supabase
+        .from('shops')
+        .select('id, name, slug, description, avatar_url, cover_image_url, category, niche')
+        .or('name.ilike.$pattern,description.ilike.$pattern,category.ilike.$pattern,niche.ilike.$pattern')
+        .order('created_at', ascending: false)
+        .limit(20);
+    return List<Map<String, dynamic>>.from(res as List);
+  }
+
+  Future<List<Map<String, dynamic>>> _searchCollections(String pattern) async {
+    final res = await _supabase
+        .from('collections')
+        .select('id, name, slug, description, cover_image_url, shop_id, shops(name,slug)')
+        .or('name.ilike.$pattern,description.ilike.$pattern')
+        .order('created_at', ascending: false)
+        .limit(20);
+    return List<Map<String, dynamic>>.from(res as List);
+  }
+
+  int get _totalResults =>
+      _artworks.length +
+      _artists.length +
+      _shops.length +
+      _collections.length +
+      _posts.length;
 
   @override
   Widget build(BuildContext context) {
@@ -298,6 +343,8 @@ class _SearchScreenState extends State<SearchScreen>
                 tabs: [
                   Tab(text: 'Artworks (${_artworks.length})'),
                   Tab(text: 'Artists (${_artists.length})'),
+                  Tab(text: 'Shops (${_shops.length})'),
+                  Tab(text: 'Collections (${_collections.length})'),
                   Tab(text: 'Posts (${_posts.length})'),
                 ],
               ),
@@ -328,6 +375,8 @@ class _SearchScreenState extends State<SearchScreen>
       children: [
         _ArtworksTab(artworks: _artworks),
         _ArtistsTab(artists: _artists),
+        _ShopsTab(shops: _shops),
+        _CollectionsTab(collections: _collections),
         _PostsTab(posts: _posts),
       ],
     );
@@ -539,6 +588,122 @@ class _ArtistsTab extends StatelessWidget {
   }
 }
 
+
+class _ShopsTab extends StatelessWidget {
+  final List<Map<String, dynamic>> shops;
+  const _ShopsTab({required this.shops});
+
+  @override
+  Widget build(BuildContext context) {
+    if (shops.isEmpty) return const _EmptyTab(label: 'No shops found');
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: shops.length,
+      separatorBuilder: (_, __) =>
+          const Divider(height: 1, color: AppColors.border),
+      itemBuilder: (_, i) {
+        final shop = shops[i];
+        final name = shop['name']?.toString() ?? 'Shop';
+        final slug = shop['slug']?.toString();
+        final desc = shop['description']?.toString();
+        final avatar = shop['avatar_url']?.toString();
+        return ListTile(
+          contentPadding:
+              const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+          leading: CircleAvatar(
+            radius: 24,
+            backgroundColor: AppColors.surfaceVariant,
+            backgroundImage: avatar != null && avatar.isNotEmpty
+                ? CachedNetworkImageProvider(avatar)
+                : null,
+            child: (avatar == null || avatar.isEmpty)
+                ? Text(name.substring(0, 1).toUpperCase(),
+                    style: const TextStyle(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w700))
+                : null,
+          ),
+          title: Text(name,
+              style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w700)),
+          subtitle: desc == null || desc.isEmpty
+              ? null
+              : Text(desc,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      color: AppColors.textSecondary, fontSize: 12)),
+          onTap: () {
+            if (slug != null && slug.isNotEmpty) context.push('/shop/$slug');
+          },
+        );
+      },
+    );
+  }
+}
+
+class _CollectionsTab extends StatelessWidget {
+  final List<Map<String, dynamic>> collections;
+  const _CollectionsTab({required this.collections});
+
+  @override
+  Widget build(BuildContext context) {
+    if (collections.isEmpty) {
+      return const _EmptyTab(label: 'No collections found');
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: collections.length,
+      separatorBuilder: (_, __) =>
+          const Divider(height: 1, color: AppColors.border),
+      itemBuilder: (_, i) {
+        final c = collections[i];
+        final name = c['name']?.toString() ?? 'Collection';
+        final desc = c['description']?.toString();
+        final shopRaw = c['shops'];
+        final shop = shopRaw is List
+            ? (shopRaw.isNotEmpty ? shopRaw.first as Map<String, dynamic>? : null)
+            : (shopRaw as Map<String, dynamic>?);
+        final shopName = shop?['name']?.toString() ?? 'Shop';
+        final shopSlug = shop?['slug']?.toString();
+        final slug = c['slug']?.toString() ?? c['id']?.toString();
+        return ListTile(
+          contentPadding:
+              const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+          leading: const CircleAvatar(
+            radius: 24,
+            backgroundColor: AppColors.surfaceVariant,
+            child: Icon(Icons.collections_outlined, color: AppColors.primary),
+          ),
+          title: Text(name,
+              style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w700)),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(shopName,
+                  style:
+                      const TextStyle(color: AppColors.primary, fontSize: 11)),
+              if (desc != null && desc.isNotEmpty)
+                Text(desc,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: AppColors.textSecondary, fontSize: 12)),
+            ],
+          ),
+          onTap: () {
+            if (shopSlug != null && shopSlug.isNotEmpty && slug != null && slug.isNotEmpty) {
+              context.push('/shop/$shopSlug/collection/$slug');
+            }
+          },
+        );
+      },
+    );
+  }
+}
 // ─── Posts Tab ────────────────────────────────────────────────────────────────
 
 class _PostsTab extends StatelessWidget {
@@ -688,3 +853,4 @@ class _EmptyTab extends StatelessWidget {
                 color: AppColors.textSecondary, fontSize: 14)),
       );
 }
+

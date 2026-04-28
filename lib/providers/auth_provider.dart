@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/config/app_config.dart';
 import '../core/auth/oauth_url.dart';
 import '../services/notifications/notification_service.dart';
+import '../services/studio_service.dart';
 
 /// Session is considered expired if the user hasn't been active for this long.
 const _kSessionTimeoutDuration = Duration(hours: 8);
@@ -71,6 +72,7 @@ class AuthProvider with ChangeNotifier {
           _user = session?.user;
           if (_user != null) {
             await _ensureProfileExists(_user!.id);
+            await StudioService.ensureCreatorDefaultStudio(_user!.id);
             await _touchLastActive();
             NotificationService.instance.subscribeForUser(_user!.id);
             await refreshOnboardingStatus();
@@ -177,61 +179,61 @@ class AuthProvider with ChangeNotifier {
 
   // ── Onboarding status ────────────────────────────────────────────────────────
 
-  /// Loads [onboardingComplete] from `profiles` for the current session user.
+  /// Loads [onboardingComplete] AND [termsAccepted] from `profiles` in one query.
   Future<void> refreshOnboardingStatus() async {
     final uid = _user?.id ?? _supabase.auth.currentUser?.id;
     if (uid == null) {
       _onboardingComplete = false;
+      _termsAccepted = false;
       notifyListeners();
       return;
     }
     try {
       final row = await _supabase
           .from('profiles')
-          .select('onboarding_complete')
+          .select('onboarding_complete, terms_accepted_at')
           .eq('id', uid)
           .maybeSingle();
       final oc = row?['onboarding_complete'];
       _onboardingComplete =
           row != null && (oc == true || oc == 'true' || oc == 't');
+      _termsAccepted = row?['terms_accepted_at'] != null;
     } catch (e) {
       final s = e.toString();
-      if (s.contains('42703') && s.contains('onboarding_complete')) {
-        debugPrint(
-          '[Auth] profiles.onboarding_complete column missing — '
-          'run: ALTER TABLE profiles ADD COLUMN onboarding_complete boolean NOT NULL DEFAULT false;',
-        );
+      if (s.contains('42703')) {
+        debugPrint('[Auth] Missing column in profiles: $e');
       } else {
         debugPrint('[Auth] refreshOnboardingStatus: $e');
       }
       _onboardingComplete = false;
+      _termsAccepted = false;
     }
     notifyListeners();
   }
 
   // ── Terms & conditions (per user, local) ───────────────────────────────────
 
+  /// Server-side terms check (already loaded in refreshOnboardingStatus).
   Future<void> loadTermsAcceptance() async {
-    final uid = _user?.id;
-    if (uid == null) {
-      _termsAccepted = false;
-      notifyListeners();
-      return;
-    }
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      _termsAccepted = prefs.getBool(_termsPrefsKey(uid)) == true;
-    } catch (_) {
-      _termsAccepted = false;
-    }
-    notifyListeners();
+    // Now handled inside refreshOnboardingStatus — this is a no-op kept for
+    // call-site compatibility.
   }
 
   Future<void> acceptTermsAndConditions() async {
     final uid = _user?.id;
     if (uid == null) return;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_termsPrefsKey(uid), true);
+    try {
+      await _supabase.from('profiles').update({
+        'terms_accepted_at': DateTime.now().toIso8601String(),
+      }).eq('id', uid);
+    } catch (e) {
+      debugPrint('[Auth] acceptTerms write failed: $e');
+    }
+    // Also keep local prefs as cache for faster cold-start.
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_termsPrefsKey(uid), true);
+    } catch (_) {}
     _termsAccepted = true;
     notifyListeners();
   }

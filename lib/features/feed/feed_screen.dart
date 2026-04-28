@@ -11,6 +11,7 @@ import '../../models/painting.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/feed_provider.dart';
 import '../../providers/main_tab_provider.dart';
+import '../../services/studio_service.dart';
 import '../../widgets/cards/painting_card.dart';
 import '../../widgets/feed/marketplace_media.dart';
 
@@ -30,6 +31,7 @@ class _FeedScreenState extends State<FeedScreen> {
   String? _recentActivityError;
   List<_RecentActivityItem> _recentActivities = const [];
   bool _showingMoreFeed = false;
+  List<Map<String, dynamic>> _featuredStudios = const [];
 
   static const _chips = [
     'All',
@@ -47,6 +49,7 @@ class _FeedScreenState extends State<FeedScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<FeedProvider>().loadFeed(refresh: true);
       _loadRecentActivity();
+      _loadFeaturedStudios();
     });
     _scrollController.addListener(_onScroll);
   }
@@ -211,10 +214,63 @@ class _FeedScreenState extends State<FeedScreen> {
         _recentActivityLoading = false;
       });
     } catch (_) {
+      await _loadRecentActivityFallbackFromOrders();
+    }
+  }
+
+  Future<void> _loadFeaturedStudios() async {
+    final rows = await StudioService.getFeaturedStudios(limit: 8);
+    if (!mounted) return;
+    setState(() => _featuredStudios = rows);
+  }
+
+  Future<void> _loadRecentActivityFallbackFromOrders() async {
+    try {
+      final rows = await SupabaseClientHelper.db
+          .from('orders')
+          .select(
+              'id, artwork_id, artwork_title, artwork_media_url, buyer_name, amount, currency, created_at')
+          .eq('status', 'completed')
+          .order('created_at', ascending: false)
+          .limit(8);
+
+      final data = List<Map<String, dynamic>>.from(rows as List);
+      final items = data
+          .map(
+            (row) => _RecentActivityItem(
+              orderId: row['id'] as String,
+              artworkId: row['artwork_id'] as String?,
+              artworkTitle:
+                  (row['artwork_title'] as String?)?.trim().isNotEmpty == true
+                      ? (row['artwork_title'] as String).trim()
+                      : 'Untitled Artwork',
+              artworkMediaUrl: row['artwork_media_url'] as String?,
+              buyerName:
+                  (row['buyer_name'] as String?)?.trim().isNotEmpty == true
+                      ? (row['buyer_name'] as String).trim()
+                      : 'Collector',
+              amount: (row['amount'] as num?)?.toDouble(),
+              currency: (row['currency'] as String?) ?? 'INR',
+              purchasedAt: row['created_at'] != null
+                  ? DateTime.tryParse(row['created_at'] as String)
+                  : null,
+              solanaExplorerUrl: null,
+            ),
+          )
+          .toList();
+
       if (!mounted) return;
       setState(() {
+        _recentActivities = items;
         _recentActivityLoading = false;
-        _recentActivityError = 'Could not load recent purchases right now.';
+        _recentActivityError = null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _recentActivities = const [];
+        _recentActivityLoading = false;
+        _recentActivityError = null;
       });
     }
   }
@@ -307,7 +363,7 @@ class _FeedScreenState extends State<FeedScreen> {
               : width < 600
                   ? 18.0
                   : 24.0;
-          final topPad = widget.useShellTopBar ? 8.0 : 20.0;
+          final topPad = widget.useShellTopBar ? 18.0 : 20.0;
           final bottomInset = MediaQuery.paddingOf(context).bottom;
           final scrollBottomPad =
               bottomInset + (widget.useShellTopBar ? 28.0 : 20.0);
@@ -478,6 +534,23 @@ class _FeedScreenState extends State<FeedScreen> {
                   child: Padding(
                     padding: EdgeInsets.fromLTRB(hPad, 22, hPad, 0),
                     child: _SectionHeader(
+                      title: 'Featured Studios',
+                      subtitle: 'Signature creator studios with active collections',
+                      actionLabel: 'View all studios',
+                      onActionTap: () => context.push('/shop'),
+                    ),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: _FeaturedStudiosStrip(
+                    horizontalPadding: hPad,
+                    studios: _featuredStudios,
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(hPad, 22, hPad, 0),
+                    child: _SectionHeader(
                       title: 'Live Drops & Highlights',
                       subtitle:
                           'Time-sensitive listings and curated showcase moments',
@@ -567,6 +640,156 @@ class _FeedScreenState extends State<FeedScreen> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _FeaturedStudiosStrip extends StatelessWidget {
+  final double horizontalPadding;
+  final List<Map<String, dynamic>> studios;
+
+  const _FeaturedStudiosStrip({
+    required this.horizontalPadding,
+    required this.studios,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (studios.isEmpty) {
+      return Padding(
+        padding: EdgeInsets.fromLTRB(horizontalPadding, 12, horizontalPadding, 0),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceOf(context),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.borderOf(context)),
+          ),
+          child: Text(
+            'No featured studios available yet.',
+            style: TextStyle(
+              color: AppColors.textSecondaryOf(context),
+              fontSize: 13,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return SizedBox(
+      height: 170,
+      child: ListView.separated(
+        padding: EdgeInsets.fromLTRB(horizontalPadding, 12, horizontalPadding, 0),
+        scrollDirection: Axis.horizontal,
+        itemCount: studios.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        itemBuilder: (context, i) {
+          final s = studios[i];
+          final profile = s['profiles'] as Map<String, dynamic>?;
+          final name = (s['name'] as String?)?.trim().isNotEmpty == true
+              ? (s['name'] as String).trim()
+              : 'Studio';
+          final by = (profile?['display_name'] as String?)?.trim().isNotEmpty == true
+              ? (profile!['display_name'] as String).trim()
+              : 'Creator';
+          final slug = s['slug']?.toString();
+          final avatar = (s['avatar_url'] as String?)?.trim();
+          final works = (s['artworks_count'] as num?)?.toInt() ?? 0;
+          final collections = (s['collections_count'] as num?)?.toInt() ?? 0;
+          final category = (s['category'] as String?)?.trim();
+
+          return InkWell(
+            onTap: () {
+              if (slug != null && slug.isNotEmpty) {
+                context.push('/shop/$slug');
+              } else {
+                context.push('/shop');
+              }
+            },
+            borderRadius: BorderRadius.circular(16),
+            child: Ink(
+              width: 290,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceOf(context),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.borderOf(context)),
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 30,
+                    backgroundColor: AppColors.primary.withValues(alpha: 0.18),
+                    backgroundImage: (avatar != null && avatar.isNotEmpty)
+                        ? NetworkImage(avatar)
+                        : null,
+                    child: (avatar == null || avatar.isEmpty)
+                        ? Text(
+                            name.substring(0, 1).toUpperCase(),
+                            style: const TextStyle(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          )
+                        : null,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: AppColors.textPrimaryOf(context),
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'by $by',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: AppColors.textSecondaryOf(context),
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '$works works • $collections collections',
+                          style: TextStyle(
+                            color: AppColors.textSecondaryOf(context),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (category != null && category.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            category,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppColors.primary,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }

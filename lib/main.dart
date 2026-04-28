@@ -23,6 +23,12 @@ void main() async {
   // Load environment variables from .env asset
   await dotenv.load(fileName: '.env');
 
+  final supabaseConfigError = AppConfig.supabaseConfigError;
+  if (supabaseConfigError != null) {
+    runApp(_ConfigErrorApp(message: supabaseConfigError));
+    return;
+  }
+
   // Initialize Supabase from env (PKCE + detect OAuth callback in the URL on web)
   await Supabase.initialize(
     url: AppConfig.supabaseUrl,
@@ -57,6 +63,88 @@ void main() async {
   ]);
 
   runApp(const ArtyugApp());
+}
+
+class _ConfigErrorApp extends StatelessWidget {
+  final String message;
+
+  const _ConfigErrorApp({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        backgroundColor: const Color(0xFF0D0B0D),
+        body: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 520),
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF17141A),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: const Color(0xFFFF5A1F), width: 1.2),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.error_outline_rounded,
+                            color: Color(0xFFFF5A1F), size: 28),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Supabase Configuration Error',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Artyug could not start because the runtime Supabase config in `.env` is invalid.',
+                      style: TextStyle(
+                        color: Color(0xFFB9B2C3),
+                        fontSize: 15,
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    SelectableText(
+                      message,
+                      style: const TextStyle(
+                        color: Color(0xFFFFD2C2),
+                        fontSize: 14,
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Update `SUPABASE_URL` and `SUPABASE_ANON_KEY` in `.env`, then hot restart the app.',
+                      style: TextStyle(
+                        color: Color(0xFFEDEAF2),
+                        fontSize: 14,
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class ArtyugApp extends StatefulWidget {

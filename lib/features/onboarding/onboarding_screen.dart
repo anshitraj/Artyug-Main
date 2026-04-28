@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,45 +10,154 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme/app_colors.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/onboarding_guide.dart';
-import '../../providers/theme_provider.dart' show ThemeProvider;
 
-/// Fixed white + orange onboarding canvas. Use [AppColors.textOnLight] on cards, not theme
-/// shell text tokens, so copy stays readable regardless of global dark/light preference.
-const _obCanvas = Color(0xFFFFFFFF);
-const _obBorder = Color(0xFFFFE4D4);
-const _obIconTint = Color(0xFFFFF4ED);
-
-// ─── Data ─────────────────────────────────────────────────────────────────
 const _kArtCategories = [
-  'Painting', 'Photography', 'Sculpture', 'Digital Art', 'Illustration',
-  'Printmaking', 'Mixed Media', 'Textile & Fiber', 'Ceramics',
-  'Street Art', 'Video Art', 'Installation',
+  'Painting',
+  'Photography',
+  'Sculpture',
+  'Digital Art',
+  'Illustration',
+  'Printmaking',
+  'Mixed Media',
+  'Textile & Fiber',
+  'Ceramics',
+  'Street Art',
+  'Video Art',
+  'Installation',
 ];
 
 const _kCollectorInterests = [
-  'Paintings', 'Photography', 'Digital Art', 'Sculpture', 'Prints',
-  'Street Art', 'Emerging Artists', 'Abstract', 'Portraits', 'Landscapes',
+  'Paintings',
+  'Photography',
+  'Digital Art',
+  'Sculpture',
+  'Prints',
+  'Street Art',
+  'Emerging Artists',
+  'Abstract',
+  'Portraits',
+  'Landscapes',
 ];
 
-const _kGuilds = [
-  'Painters Guild', 'Digital Artists', 'Photography Circle',
-  'Mixed Media Collective', 'None right now',
-];
-
-const _kSellTypes = [
-  {'id': 'originals', 'label': 'Original works', 'icon': Icons.image_outlined},
-  {'id': 'prints', 'label': 'Prints & editions', 'icon': Icons.print_outlined},
-  {'id': 'digital', 'label': 'Digital downloads', 'icon': Icons.monitor_outlined},
+const List<Map<String, Object>> _kSellTypes = [
+  {'id': 'originals', 'label': 'Original Works', 'icon': Icons.image_outlined},
+  {'id': 'prints', 'label': 'Prints & Editions', 'icon': Icons.print_outlined},
+  {
+    'id': 'digital',
+    'label': 'Digital Downloads',
+    'icon': Icons.monitor_outlined
+  },
   {'id': 'commissions', 'label': 'Commissions', 'icon': Icons.brush_outlined},
 ];
 
-const _kPurchaseStyles = [
-  {'id': 'buy', 'label': 'Direct purchase', 'sub': 'Browse and buy at the listed price'},
-  {'id': 'bid', 'label': 'Auctions & bidding', 'sub': 'I love the thrill of live bidding'},
-  {'id': 'both', 'label': 'Both styles', 'sub': 'Flexible — depends on the piece'},
+const List<Map<String, String>> _kPurchaseStyles = [
+  {
+    'id': 'buy',
+    'label': 'Direct Purchase',
+    'sub': 'Browse and buy at listed price',
+  },
+  {
+    'id': 'bid',
+    'label': 'Auctions & Bidding',
+    'sub': 'I like the thrill of bidding',
+  },
+  {
+    'id': 'both',
+    'label': 'Both Styles',
+    'sub': 'Depends on the artwork',
+  },
 ];
 
-// ─── Screen ───────────────────────────────────────────────────────────────
+final _fallbackGuilds = <_GuildData>[
+  const _GuildData(
+    id: 'painters-guild',
+    name: 'Painters Guild',
+    description: 'Traditional and contemporary painting creators.',
+    memberCount: 1420,
+    category: 'Painting',
+  ),
+  const _GuildData(
+    id: 'digital-artists',
+    name: 'Digital Artists',
+    description: '3D, generative, and digital-native visual creators.',
+    memberCount: 1980,
+    category: 'Digital',
+  ),
+  const _GuildData(
+    id: 'photography-circle',
+    name: 'Photography Circle',
+    description: 'Street, documentary, portrait, and experimental photo.',
+    memberCount: 980,
+    category: 'Photography',
+  ),
+  const _GuildData(
+    id: 'mixed-media-collective',
+    name: 'Mixed Media Collective',
+    description: 'Artists blending formats, textures, and techniques.',
+    memberCount: 760,
+    category: 'Mixed Media',
+  ),
+  const _GuildData(
+    id: 'sculptors-guild',
+    name: 'Sculptors Guild',
+    description: 'Stone, metal, clay, and contemporary sculptural forms.',
+    memberCount: 410,
+    category: 'Sculpture',
+  ),
+  const _GuildData(
+    id: 'street-art-circle',
+    name: 'Street Art Circle',
+    description: 'Public-space and mural creators reshaping city culture.',
+    memberCount: 640,
+    category: 'Street Art',
+  ),
+];
+
+final _fallbackCreators = <_CreatorSuggestion>[
+  const _CreatorSuggestion(
+    id: 'creator-1',
+    displayName: 'Aarav Canvas',
+    username: 'aarav_canvas',
+    medium: 'Oil Painting',
+    followers: 8200,
+  ),
+  const _CreatorSuggestion(
+    id: 'creator-2',
+    displayName: 'Mira Pixels',
+    username: 'mira_pixels',
+    medium: 'Digital Art',
+    followers: 6400,
+  ),
+  const _CreatorSuggestion(
+    id: 'creator-3',
+    displayName: 'Ishita Frames',
+    username: 'ishita_frames',
+    medium: 'Photography',
+    followers: 5900,
+  ),
+  const _CreatorSuggestion(
+    id: 'creator-4',
+    displayName: 'Rohan Clay',
+    username: 'rohan_clay',
+    medium: 'Sculpture',
+    followers: 3100,
+  ),
+  const _CreatorSuggestion(
+    id: 'creator-5',
+    displayName: 'Neel Street',
+    username: 'neel_street',
+    medium: 'Street Art',
+    followers: 4700,
+  ),
+  const _CreatorSuggestion(
+    id: 'creator-6',
+    displayName: 'Tara Ink',
+    username: 'tara_ink',
+    medium: 'Illustration',
+    followers: 5200,
+  ),
+];
+
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
 
@@ -55,13 +165,13 @@ class OnboardingScreen extends StatefulWidget {
   State<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
-class _OnboardingScreenState extends State<OnboardingScreen> {
-  String? _role; // 'creator' | 'collector'
+class _OnboardingScreenState extends State<OnboardingScreen>
+    with SingleTickerProviderStateMixin {
+  String? _role;
   int _step = 1;
   bool _saving = false;
   String? _error;
 
-  // ── Username availability (Twitter-style) ────────────────────────────────
   static const _kUsernameCheckDebounce = Duration(milliseconds: 450);
 
   Timer? _creatorUsernameDebounce;
@@ -73,27 +183,69 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   String? _creatorUsernameLastChecked;
   String? _collectorUsernameLastChecked;
 
-  // Creator state
   final _nameCtrl = TextEditingController();
   final _usernameCtrl = TextEditingController();
   final _bioCtrl = TextEditingController();
   final List<String> _categories = [];
   final List<String> _sellTypes = [];
   bool? _wantsEvents;
-  String _guildPref = '';
 
-  // Collector state
   final _cNameCtrl = TextEditingController();
   final _cUsernameCtrl = TextEditingController();
   final List<String> _interests = [];
   String _purchaseStyle = '';
   bool? _cWantsEvents;
 
+  final Set<String> _joinedGuildIds = <String>{};
+  final Set<String> _followedCreatorIds = <String>{};
+  List<_GuildData> _guildSuggestions = List<_GuildData>.from(_fallbackGuilds);
+  List<_CreatorSuggestion> _creatorSuggestions =
+      List<_CreatorSuggestion>.from(_fallbackCreators);
+  bool _loadingGuilds = true;
+  bool _loadingCreators = true;
+  bool _socialLoaded = false;
+
+  late final AnimationController _bgController;
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _exitIfAlreadyOnboarded());
+    _bgController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 9),
+    )..repeat(reverse: true);
+    _loadSocialData();
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _exitIfAlreadyOnboarded());
   }
+
+  @override
+  void dispose() {
+    _creatorUsernameDebounce?.cancel();
+    _collectorUsernameDebounce?.cancel();
+    _bgController.dispose();
+    _nameCtrl.dispose();
+    _usernameCtrl.dispose();
+    _bioCtrl.dispose();
+    _cNameCtrl.dispose();
+    _cUsernameCtrl.dispose();
+    super.dispose();
+  }
+
+  int get _totalSteps =>
+      _role == 'creator' ? 10 : (_role == 'collector' ? 9 : 1);
+
+  double get _progress => _totalSteps > 1 ? (_step - 1) / (_totalSteps - 1) : 0;
+
+  bool get _isCreator => _role == 'creator';
+
+  bool get _isCollector => _role == 'collector';
+
+  String get _activeName =>
+      _isCreator ? _nameCtrl.text.trim() : _cNameCtrl.text.trim();
+
+  String get _activeUsername =>
+      _isCreator ? _usernameCtrl.text.trim() : _cUsernameCtrl.text.trim();
 
   Future<void> _exitIfAlreadyOnboarded() async {
     final user = Supabase.instance.client.auth.currentUser;
@@ -104,32 +256,102 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           .select('onboarding_complete')
           .eq('id', user.id)
           .maybeSingle();
-      if (!mounted) return;
-      if (row == null) return;
+      if (!mounted || row == null) return;
       final oc = row['onboarding_complete'];
       if (oc == true || oc == 'true' || oc == 't') {
         await context.read<AuthProvider>().refreshOnboardingStatus();
         if (mounted) context.go('/main');
       }
     } catch (_) {
-      // Stay on onboarding if the check fails
+      // Keep onboarding screen if check fails.
     }
   }
 
-  @override
-  void dispose() {
-    _creatorUsernameDebounce?.cancel();
-    _collectorUsernameDebounce?.cancel();
-    _nameCtrl.dispose();
-    _usernameCtrl.dispose();
-    _bioCtrl.dispose();
-    _cNameCtrl.dispose();
-    _cUsernameCtrl.dispose();
-    super.dispose();
+  Future<void> _loadSocialData() async {
+    if (_socialLoaded) return;
+    _socialLoaded = true;
+
+    if (mounted) {
+      setState(() {
+        _loadingGuilds = true;
+        _loadingCreators = true;
+      });
+    }
+
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+
+    final guildsFuture = _fetchGuildSuggestions();
+    final creatorsFuture = _fetchCreatorSuggestions(userId);
+
+    final guilds = await guildsFuture;
+    final creators = await creatorsFuture;
+
+    if (!mounted) return;
+    setState(() {
+      _guildSuggestions =
+          guilds.isEmpty ? List<_GuildData>.from(_fallbackGuilds) : guilds;
+      _creatorSuggestions = creators.isEmpty
+          ? List<_CreatorSuggestion>.from(_fallbackCreators)
+          : creators;
+      _loadingGuilds = false;
+      _loadingCreators = false;
+    });
   }
 
-  int get _totalSteps => _role == 'creator' ? 8 : (_role == 'collector' ? 6 : 1);
-  double get _progress => _totalSteps > 1 ? (_step - 1) / (_totalSteps - 1) : 0;
+  Future<List<_GuildData>> _fetchGuildSuggestions() async {
+    final client = Supabase.instance.client;
+
+    Future<List<Map<String, dynamic>>> fetchRows(String table) async {
+      final response = await client.from(table).select('*').limit(10);
+      return List<Map<String, dynamic>>.from(response as List);
+    }
+
+    try {
+      final rows = await fetchRows('guilds');
+      final parsed =
+          rows.map(_GuildData.fromRow).whereType<_GuildData>().toList();
+      if (parsed.isNotEmpty) return parsed;
+    } catch (_) {
+      // Fall through.
+    }
+
+    try {
+      final rows = await fetchRows('communities');
+      final parsed =
+          rows.map(_GuildData.fromRow).whereType<_GuildData>().toList();
+      if (parsed.isNotEmpty) return parsed;
+    } catch (_) {
+      // Fall through.
+    }
+
+    return List<_GuildData>.from(_fallbackGuilds);
+  }
+
+  Future<List<_CreatorSuggestion>> _fetchCreatorSuggestions(
+      String? userId) async {
+    final client = Supabase.instance.client;
+    if (userId == null) {
+      return List<_CreatorSuggestion>.from(_fallbackCreators);
+    }
+
+    try {
+      final response = await client
+          .from('profiles')
+          .select('id, display_name, username, bio, role')
+          .eq('role', 'creator')
+          .neq('id', userId)
+          .limit(10);
+
+      final rows = List<Map<String, dynamic>>.from(response as List);
+      final creators = rows
+          .map(_CreatorSuggestion.fromProfileRow)
+          .whereType<_CreatorSuggestion>()
+          .toList();
+      return creators;
+    } catch (_) {
+      return List<_CreatorSuggestion>.from(_fallbackCreators);
+    }
+  }
 
   String _normalizeUsername(String raw) {
     var s = raw.toLowerCase().replaceAll(RegExp(r'[^a-z0-9_]'), '');
@@ -139,7 +361,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   bool _isValidUsername(String v) => RegExp(r'^[a-z0-9_]{3,20}$').hasMatch(v);
 
-  /// True if [username] is free or already owned by the signed-in user (matches [edit_profile_screen]).
   Future<bool> _isUsernameAvailable(String username) async {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return false;
@@ -152,7 +373,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           .maybeSingle();
       return conflict == null;
     } catch (_) {
-      // RLS/network: fall through to save; server still enforces uniqueness.
+      // Preserve existing behavior: do not block on transient check failures.
       return true;
     }
   }
@@ -187,10 +408,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       );
     }
 
-    final timer = isCreator ? _creatorUsernameDebounce : _collectorUsernameDebounce;
+    final timer =
+        isCreator ? _creatorUsernameDebounce : _collectorUsernameDebounce;
     timer?.cancel();
 
-    // Only check when it's actually a valid username. Otherwise stay idle.
     if (!_isValidUsername(normalized)) {
       _setUsernameStatus(isCreator: isCreator, status: _UsernameStatus.idle);
       return;
@@ -207,7 +428,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       final ok = await _isUsernameAvailable(current);
       if (!mounted) return;
 
-      // Ignore stale results if user already typed something else
       final now = _normalizeUsername(usernameCtrl.text);
       if (now != current) return;
 
@@ -239,77 +459,28 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   bool get _canContinue {
     if (_step == 1) return _role != null;
-    if (_role == 'creator') {
-      if (_step == 2) return _nameCtrl.text.trim().isNotEmpty && _isValidUsername(_usernameCtrl.text);
+
+    if (_isCreator) {
+      if (_step == 2) {
+        return _nameCtrl.text.trim().isNotEmpty &&
+            _isValidUsername(_usernameCtrl.text);
+      }
       if (_step == 3) return _categories.isNotEmpty;
       if (_step == 6) return _wantsEvents != null;
       return true;
     }
-    if (_role == 'collector') {
-      if (_step == 2) return _cNameCtrl.text.trim().isNotEmpty && _isValidUsername(_cUsernameCtrl.text);
+
+    if (_isCollector) {
+      if (_step == 2) {
+        return _cNameCtrl.text.trim().isNotEmpty &&
+            _isValidUsername(_cUsernameCtrl.text);
+      }
       if (_step == 4) return _purchaseStyle.isNotEmpty;
       if (_step == 5) return _cWantsEvents != null;
       return true;
     }
-    return true;
-  }
 
-  Future<void> _complete() async {
-    setState(() { _saving = true; _error = null; });
-    try {
-      final user = Supabase.instance.client.auth.currentUser;
-      if (user != null) {
-        final username = _role == 'creator'
-            ? _usernameCtrl.text.trim()
-            : _cUsernameCtrl.text.trim();
-        if (_isValidUsername(username)) {
-          final available = await _isUsernameAvailable(username);
-          if (!available) {
-            throw Exception('USERNAME_TAKEN');
-          }
-        }
-        // Use `display_name` (matches ProfileModel / Supabase schema). `full_name` breaks the upsert.
-        await Supabase.instance.client.from('profiles').upsert({
-          'id': user.id,
-          'display_name': _role == 'creator'
-              ? _nameCtrl.text.trim()
-              : _cNameCtrl.text.trim(),
-          'username': username,
-          'bio': _role == 'creator' ? _bioCtrl.text.trim() : '',
-          'role': _role,
-          'onboarding_complete': true,
-          'updated_at': DateTime.now().toIso8601String(),
-        });
-        if (mounted) {
-          await context.read<AuthProvider>().refreshOnboardingStatus();
-          await OnboardingGuide.markAsShown();
-        }
-      }
-      if (mounted) {
-        // Post-onboarding landing.
-        // Always route into the main shell so users get the normal app nav.
-        const dashboard = '/main';
-        context.go(
-          '/terms-acceptance?next=${Uri.encodeComponent(dashboard)}',
-        );
-      }
-    } catch (e) {
-      final msg = e.toString() == 'Exception: USERNAME_TAKEN'
-          ? 'That username is already taken. Tap Back and choose a different one.'
-          : _profileSaveErrorMessage(e);
-      setState(() { _error = msg; });
-      // Do not navigate away — otherwise onboarding_complete never saves and login loops forever.
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(msg),
-            backgroundColor: Colors.red.shade800,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
+    return true;
   }
 
   Future<void> _next() async {
@@ -317,558 +488,989 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       await _complete();
       return;
     }
-    if (_step == 2 && (_role == 'creator' || _role == 'collector')) {
-      final username = _role == 'creator'
-          ? _usernameCtrl.text.trim()
-          : _cUsernameCtrl.text.trim();
+
+    if (_step == 2 && (_isCreator || _isCollector)) {
+      final username = _activeUsername;
       if (_isValidUsername(username)) {
-        setState(() { _saving = true; _error = null; });
+        setState(() {
+          _saving = true;
+          _error = null;
+        });
         final ok = await _isUsernameAvailable(username);
         if (!mounted) return;
         setState(() => _saving = false);
         if (!ok) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Username @$username is already taken. Pick another.',
-                ),
-                backgroundColor: Colors.red.shade800,
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-          }
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content:
+                  Text('Username @$username is already taken. Pick another.'),
+              backgroundColor: Colors.red.shade800,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
           return;
         }
       }
     }
+
     if (!mounted) return;
-    setState(() { _step++; _error = null; });
+    setState(() {
+      _step++;
+      _error = null;
+    });
   }
 
   void _back() => setState(() => _step = (_step - 1).clamp(1, _totalSteps));
 
-  // ── Step Renderers ──────────────────────────────────────────────────────
-  Widget _stepRoleSelect() => LayoutBuilder(
-        builder: (context, constraints) {
-          final narrow = constraints.maxWidth < 560;
-          final creator = _RoleCard(
-            title: "I'm a Creator",
-            subtitle: 'Sell art. Run events.\nBuild your guild.',
-            icon: Icons.palette_outlined,
-            selected: _role == 'creator',
-            onTap: () => setState(() => _role = 'creator'),
-          );
-          final collector = _RoleCard(
-            title: "I'm a Collector",
-            subtitle: 'Discover. Buy.\nOwn verified art.',
-            icon: Icons.collections_outlined,
-            selected: _role == 'collector',
-            onTap: () => setState(() => _role = 'collector'),
-          );
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'CHOOSE YOUR PATH.',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w900,
-                  color: AppColors.textOnLight,
-                  letterSpacing: -0.8,
-                  height: 1.1,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Are you here to create the culture or collect it?',
-                style: TextStyle(
-                  fontSize: narrow ? 13.5 : 14,
-                  color: AppColors.primaryDark,
-                  height: 1.45,
-                ),
-              ),
-              const SizedBox(height: 28),
-              if (narrow) ...[
-                creator,
-                const SizedBox(height: 12),
-                collector,
-              ] else
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: creator),
-                    const SizedBox(width: 14),
-                    Expanded(child: collector),
-                  ],
-                ),
-            ],
-          );
-        },
-      );
+  Future<void> _complete() async {
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
 
-  Widget _stepNameUsername({
-    required TextEditingController nameCtrl,
-    required TextEditingController usernameCtrl,
-    required bool isCreator,
-    required String stepLabel,
-    required String namePlaceholder,
-  }) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      _StepLabel(stepLabel),
-      const Text('NAME + USERNAME.', style: TextStyle(
-        fontSize: 26, fontWeight: FontWeight.w900, color: AppColors.textOnLight, letterSpacing: -0.6,
-      )),
-      const SizedBox(height: 6),
-      const Text('Set your public Artyug identity.', style: TextStyle(fontSize: 14, color: AppColors.textOnLightSecondary)),
-      const SizedBox(height: 28),
-      _Label('Display Name'),
-      const SizedBox(height: 8),
-      TextField(
-        controller: nameCtrl,
-        textInputAction: TextInputAction.next,
-        style: const TextStyle(color: AppColors.textOnLight, fontSize: 15, fontWeight: FontWeight.w600),
-        decoration: InputDecoration(
-          hintText: namePlaceholder,
-          prefixIcon: const Icon(Icons.person_outline, size: 20),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(
-              color: nameCtrl.text.trim().isEmpty && usernameCtrl.text.isNotEmpty
-                  ? AppColors.primary.withOpacity(0.6)
-                  : _obBorder,
-              width: 1.5,
-            ),
-          ),
-        ),
-        onChanged: (_) => setState(() {}),
-      ),
-      if (nameCtrl.text.trim().isEmpty && usernameCtrl.text.isNotEmpty) ...[        
-        const SizedBox(height: 6),
-        Row(children: [
-          const Icon(Icons.info_outline, color: AppColors.primary, size: 13),
-          const SizedBox(width: 5),
-          const Text('Enter your name above to continue',
-              style: TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w600)),
-        ]),
-      ],
-      const SizedBox(height: 16),
-      _Label('Username'),
-      const SizedBox(height: 8),
-      TextField(
-        controller: usernameCtrl,
-        textInputAction: TextInputAction.done,
-        inputFormatters: [_UsernameFormatter()],
-        style: const TextStyle(color: AppColors.textOnLight, fontSize: 15, fontWeight: FontWeight.w600),
-        decoration: const InputDecoration(
-          hintText: 'e.g. priya_studio',
-          prefixText: '@',
-          prefixIcon: Icon(Icons.alternate_email, size: 20),
-        ),
-        onChanged: (v) {
-          _scheduleUsernameAvailabilityCheck(
-            isCreator: isCreator,
-            usernameCtrl: usernameCtrl,
-          );
-        },
-      ),
-      const SizedBox(height: 6),
-      Text('3–20 characters: letters, numbers, underscore.',
-          style: TextStyle(fontSize: 12, color: _isValidUsername(usernameCtrl.text) ? AppColors.primary : AppColors.textOnLightSecondary)),
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        final username = _activeUsername;
+        if (_isValidUsername(username)) {
+          final available = await _isUsernameAvailable(username);
+          if (!available) throw Exception('USERNAME_TAKEN');
+        }
 
-      // Live availability feedback (Twitter-style)
-      if (_isValidUsername(_normalizeUsername(usernameCtrl.text))) ...[
-        const SizedBox(height: 8),
-        _UsernameAvailabilityRow(
-          status: isCreator ? _creatorUsernameStatus : _collectorUsernameStatus,
-          username: isCreator ? _creatorUsernameLastChecked : _collectorUsernameLastChecked,
-        ),
-      ],
-    ],
-  );
+        await Supabase.instance.client.from('profiles').upsert({
+          'id': user.id,
+          'display_name': _activeName,
+          'username': username,
+          'bio': _isCreator ? _bioCtrl.text.trim() : '',
+          'role': _role,
+          'onboarding_complete': true,
+          'updated_at': DateTime.now().toIso8601String(),
+        });
 
-  Widget _stepChips({
-    required String stepLabel,
-    required String title,
-    required String subtitle,
-    required List<String> options,
-    required List<String> selected,
-    required void Function(String) onToggle,
-  }) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      _StepLabel(stepLabel),
-      Text(title, style: const TextStyle(
-        fontSize: 26, fontWeight: FontWeight.w900, color: AppColors.textOnLight, letterSpacing: -0.6,
-      )),
-      const SizedBox(height: 6),
-      Text(subtitle, style: const TextStyle(fontSize: 14, color: AppColors.textOnLightSecondary)),
-      const SizedBox(height: 24),
-      Wrap(spacing: 10, runSpacing: 10, children: options.map((opt) => _Chip(
-        label: opt,
-        selected: selected.contains(opt),
-        onTap: () { onToggle(opt); setState(() {}); },
-      )).toList()),
-    ],
-  );
+        await _saveOptionalSocialData(user.id);
 
-  Widget _stepBio() => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      _StepLabel('Step 4 of 8'),
-      const Text('YOUR BIO.', style: TextStyle(
-        fontSize: 26, fontWeight: FontWeight.w900, color: AppColors.textOnLight, letterSpacing: -0.6,
-      )),
-      const SizedBox(height: 6),
-      const Text('A short intro shown on your public profile.', style: TextStyle(fontSize: 14, color: AppColors.textOnLightSecondary)),
-      const SizedBox(height: 24),
-      TextField(
-        controller: _bioCtrl,
-        minLines: 4,
-        maxLines: 6,
-        maxLength: 300,
-        style: const TextStyle(color: AppColors.textOnLight, fontSize: 14, height: 1.5),
-        decoration: const InputDecoration(
-          hintText: 'e.g. I create abstract oil paintings exploring memory and landscape, based in Pune...',
-          alignLabelWithHint: true,
-        ),
-        onChanged: (_) => setState(() {}),
-      ),
-    ],
-  );
+        if (mounted) {
+          await context.read<AuthProvider>().refreshOnboardingStatus();
+          await OnboardingGuide.markAsShown();
+        }
+      }
 
-  Widget _stepSellTypes() => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      _StepLabel('Step 5 of 8'),
-      const Text('WHAT DO YOU SELL?', style: TextStyle(
-        fontSize: 26, fontWeight: FontWeight.w900, color: AppColors.textOnLight, letterSpacing: -0.6,
-      )),
-      const SizedBox(height: 6),
-      const Text('Select all types of work you offer.', style: TextStyle(fontSize: 14, color: AppColors.textOnLightSecondary)),
-      const SizedBox(height: 24),
-      ...(_kSellTypes as List<Map>).map((t) {
-        final selected = _sellTypes.contains(t['id'] as String);
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: _SelectCard(
-            title: t['label'] as String,
-            icon: t['icon'] as IconData,
-            selected: selected,
-            onTap: () {
-              setState(() {
-                selected ? _sellTypes.remove(t['id']) : _sellTypes.add(t['id'] as String);
-              });
-            },
-          ),
+      if (mounted) {
+        const dashboard = '/main';
+        context.go('/terms-acceptance?next=${Uri.encodeComponent(dashboard)}');
+      }
+    } catch (e) {
+      final msg = e.toString() == 'Exception: USERNAME_TAKEN'
+          ? 'That username is already taken. Tap Back and choose a different one.'
+          : _profileSaveErrorMessage(e);
+      setState(() => _error = msg);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg), backgroundColor: Colors.red.shade800),
         );
-      }),
-    ],
-  );
-
-  Widget _stepYesNo({
-    required String stepLabel,
-    required String title,
-    required String subtitle,
-    required bool? value,
-    required void Function(bool) onChanged,
-    Widget? extra,
-  }) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      _StepLabel(stepLabel),
-      Text(title, style: const TextStyle(
-        fontSize: 26, fontWeight: FontWeight.w900, color: AppColors.textOnLight, letterSpacing: -0.6,
-      )),
-      const SizedBox(height: 6),
-      Text(subtitle, style: const TextStyle(fontSize: 14, color: AppColors.textOnLightSecondary)),
-      const SizedBox(height: 24),
-      Row(children: [
-        Expanded(child: _YesNoCard(label: "Yes, I'm in", selected: value == true, onTap: () { onChanged(true); setState(() {}); })),
-        const SizedBox(width: 12),
-        Expanded(child: _YesNoCard(label: 'Not right now', selected: value == false, onTap: () { onChanged(false); setState(() {}); })),
-      ]),
-      if (extra != null) ...[const SizedBox(height: 16), extra],
-    ],
-  );
-
-  Widget _stepGuild() => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      _StepLabel('Step 7 of 8'),
-      const Text('JOIN A GUILD?', style: TextStyle(
-        fontSize: 26, fontWeight: FontWeight.w900, color: AppColors.textOnLight, letterSpacing: -0.6,
-      )),
-      const SizedBox(height: 6),
-      const Text('Which creator community resonates with you? (Optional.)', style: TextStyle(fontSize: 14, color: AppColors.textOnLightSecondary)),
-      const SizedBox(height: 24),
-      Wrap(spacing: 10, runSpacing: 10, children: _kGuilds.map((g) => _Chip(
-        label: g,
-        selected: _guildPref == g,
-        onTap: () => setState(() => _guildPref = g),
-      )).toList()),
-      const SizedBox(height: 12),
-      Text('You can browse and join guilds anytime from your dashboard.',
-          style: TextStyle(fontSize: 12, color: AppColors.textOnLightSecondary)),
-    ],
-  );
-
-  Widget _stepPurchaseStyle() => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      _StepLabel('Step 4 of 6'),
-      const Text('HOW DO YOU BUY?', style: TextStyle(
-        fontSize: 26, fontWeight: FontWeight.w900, color: AppColors.textOnLight, letterSpacing: -0.6,
-      )),
-      const SizedBox(height: 6),
-      const Text('Tell us how you prefer to acquire art.', style: TextStyle(fontSize: 14, color: AppColors.textOnLightSecondary)),
-      const SizedBox(height: 24),
-      ...(_kPurchaseStyles as List<Map>).map((opt) {
-        final selected = _purchaseStyle == opt['id'];
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: _SelectCard(
-            title: opt['label'] as String,
-            subtitle: opt['sub'] as String,
-            selected: selected,
-            radio: true,
-            onTap: () => setState(() => _purchaseStyle = opt['id'] as String),
-          ),
-        );
-      }),
-    ],
-  );
-
-  Widget _stepCompletion({required bool isCreator}) {
-    final name = isCreator ? _nameCtrl.text : _cNameCtrl.text;
-    final username = isCreator ? _usernameCtrl.text : _cUsernameCtrl.text;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Container(
-          width: 80, height: 80,
-          decoration: BoxDecoration(
-            color: AppColors.primary.withOpacity(0.1),
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(Icons.check_rounded, color: AppColors.primary, size: 40),
-        ),
-        const SizedBox(height: 24),
-        Text(isCreator ? "YOU'RE READY." : 'YOUR VAULT AWAITS.', style: const TextStyle(
-          fontSize: 28, fontWeight: FontWeight.w900, color: AppColors.textOnLight, letterSpacing: -0.6,
-        )),
-        const SizedBox(height: 8),
-        Text(
-          isCreator
-              ? 'Your creator profile is configured. Launching your dashboard.'
-              : 'Your collector profile is ready. Welcome to Artyug.',
-          style: const TextStyle(fontSize: 14, color: AppColors.textOnLightSecondary, height: 1.5),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 28),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white, borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: _obBorder),
-          ),
-          child: Column(children: [
-            _SummaryRow('Name', name.isEmpty ? '—' : name),
-            _SummaryRow('Username', username.isEmpty ? '—' : '@$username'),
-            _SummaryRow('Role', isCreator ? 'Creator' : 'Collector'),
-            if (isCreator && _categories.isNotEmpty)
-              _SummaryRow('Mediums', _categories.take(2).join(', ')),
-            if (!isCreator && _interests.isNotEmpty)
-              _SummaryRow('Interests', _interests.take(2).join(', ')),
-          ]),
-        ),
-        if (_error != null) ...[
-          const SizedBox(height: 12),
-          Text(_error!, style: const TextStyle(color: Color(0xFFDC2626), fontSize: 13)),
-        ],
-      ],
-    );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
+
+  Future<void> _saveOptionalSocialData(String userId) async {
+    try {
+      await _saveGuildMemberships(userId);
+    } catch (e) {
+      debugPrint('Optional guild save skipped: $e');
+    }
+
+    try {
+      await _saveFollowSelections(userId);
+    } catch (e) {
+      debugPrint('Optional follow save skipped: $e');
+    }
+  }
+
+  Future<void> _saveGuildMemberships(String userId) async {
+    if (_joinedGuildIds.isEmpty) return;
+
+    final now = DateTime.now().toIso8601String();
+    final ids = _joinedGuildIds.toList();
+
+    final attempts = <_OptionalWriteAttempt>[
+      _OptionalWriteAttempt(
+        table: 'guild_memberships',
+        rows: ids
+            .map((id) => {
+                  'user_id': userId,
+                  'guild_id': id,
+                  'created_at': now,
+                })
+            .toList(),
+        onConflict: 'user_id,guild_id',
+      ),
+      _OptionalWriteAttempt(
+        table: 'profile_guilds',
+        rows: ids
+            .map((id) => {
+                  'user_id': userId,
+                  'guild_id': id,
+                  'created_at': now,
+                })
+            .toList(),
+        onConflict: 'user_id,guild_id',
+      ),
+      _OptionalWriteAttempt(
+        table: 'community_members',
+        rows: ids
+            .map((id) => {
+                  'user_id': userId,
+                  'community_id': id,
+                  'joined_at': now,
+                })
+            .toList(),
+        onConflict: 'user_id,community_id',
+      ),
+    ];
+
+    await _runOptionalUpsertAttempts(attempts);
+  }
+
+  Future<void> _saveFollowSelections(String userId) async {
+    if (_followedCreatorIds.isEmpty) return;
+
+    final now = DateTime.now().toIso8601String();
+    final ids = _followedCreatorIds.toList();
+
+    final attempts = <_OptionalWriteAttempt>[
+      _OptionalWriteAttempt(
+        table: 'follows',
+        rows: ids
+            .map((id) => {
+                  'follower_id': userId,
+                  'following_id': id,
+                  'created_at': now,
+                })
+            .toList(),
+        onConflict: 'follower_id,following_id',
+      ),
+      _OptionalWriteAttempt(
+        table: 'user_follows',
+        rows: ids
+            .map((id) => {
+                  'follower_id': userId,
+                  'following_id': id,
+                  'created_at': now,
+                })
+            .toList(),
+        onConflict: 'follower_id,following_id',
+      ),
+      _OptionalWriteAttempt(
+        table: 'profile_follows',
+        rows: ids
+            .map((id) => {
+                  'user_id': userId,
+                  'creator_id': id,
+                  'created_at': now,
+                })
+            .toList(),
+        onConflict: 'user_id,creator_id',
+      ),
+    ];
+
+    await _runOptionalUpsertAttempts(attempts);
+  }
+
+  Future<void> _runOptionalUpsertAttempts(
+      List<_OptionalWriteAttempt> attempts) async {
+    if (attempts.isEmpty) return;
+    final client = Supabase.instance.client;
+
+    Object? lastError;
+    for (final attempt in attempts) {
+      try {
+        await client
+            .from(attempt.table)
+            .upsert(attempt.rows, onConflict: attempt.onConflict);
+        return;
+      } catch (e) {
+        lastError = e;
+      }
+    }
+
+    if (lastError != null) {
+      debugPrint('Optional save attempts failed: $lastError');
+    }
+  }
+
+  void _onRoleSelected(String role) {
+    setState(() => _role = role);
+  }
+
+  void _toggleGuild(String id) {
+    setState(() {
+      if (_joinedGuildIds.contains(id)) {
+        _joinedGuildIds.remove(id);
+      } else {
+        _joinedGuildIds.add(id);
+      }
+    });
+  }
+
+  void _toggleFollow(String id) {
+    setState(() {
+      if (_followedCreatorIds.contains(id)) {
+        _followedCreatorIds.remove(id);
+      } else {
+        _followedCreatorIds.add(id);
+      }
+    });
+  }
+
+  String _stepText(int value) => 'Step $value of $_totalSteps';
 
   Widget _buildStep() {
     if (_step == 1) return _stepRoleSelect();
 
-    if (_role == 'creator') {
+    if (_isCreator) {
       return switch (_step) {
         2 => _stepNameUsername(
-          nameCtrl: _nameCtrl, usernameCtrl: _usernameCtrl,
-          isCreator: true,
-          stepLabel: 'Step 2 of 8', namePlaceholder: 'e.g. Priya Sharma Studio',
-        ),
+            nameCtrl: _nameCtrl,
+            usernameCtrl: _usernameCtrl,
+            isCreator: true,
+            namePlaceholder: 'e.g. Priya Sharma Studio',
+          ),
         3 => _stepChips(
-          stepLabel: 'Step 3 of 8', title: 'YOUR MEDIUMS.',
-          subtitle: 'Select all that apply. Collectors use this to find you.',
-          options: _kArtCategories, selected: _categories,
-          onToggle: (v) => _categories.contains(v) ? _categories.remove(v) : _categories.add(v),
-        ),
+            title: 'Your Mediums',
+            subtitle: 'Pick the mediums that define your artistic signature.',
+            options: _kArtCategories,
+            selected: _categories,
+            onToggle: (value) {
+              setState(() {
+                _categories.contains(value)
+                    ? _categories.remove(value)
+                    : _categories.add(value);
+              });
+            },
+          ),
         4 => _stepBio(),
         5 => _stepSellTypes(),
-        6 => _stepYesNo(
-          stepLabel: 'Step 6 of 8', title: 'EVENTS?',
-          subtitle: 'Are you interested in hosting or joining art events on Artyug?',
-          value: _wantsEvents, onChanged: (v) => _wantsEvents = v,
-          extra: _wantsEvents == true ? Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: AppColors.primaryLight, borderRadius: BorderRadius.circular(12)),
-            child: Row(children: [
-              const Icon(Icons.calendar_today_outlined, size: 16, color: AppColors.primary),
-              const SizedBox(width: 10),
-              Expanded(child: Text(
-                'Great! You\'ll get access to self-serve event creation in Creator Pro.',
-                style: TextStyle(fontSize: 13, color: AppColors.primary.withOpacity(0.9)),
-              )),
-            ]),
-          ) : null,
-        ),
-        7 => _stepGuild(),
-        _ => _stepCompletion(isCreator: true),
+        6 => _stepEvents(isCreator: true),
+        7 => _stepGuilds(isCreator: true),
+        8 => _stepFollowCreators(isCreator: true),
+        9 => _stepFeedPreview(),
+        _ => _stepCompletion(),
       };
     }
 
-    if (_role == 'collector') {
+    if (_isCollector) {
       return switch (_step) {
         2 => _stepNameUsername(
-          nameCtrl: _cNameCtrl, usernameCtrl: _cUsernameCtrl,
-          isCreator: false,
-          stepLabel: 'Step 2 of 6', namePlaceholder: 'e.g. Rahul M.',
-        ),
+            nameCtrl: _cNameCtrl,
+            usernameCtrl: _cUsernameCtrl,
+            isCreator: false,
+            namePlaceholder: 'e.g. Rahul M.',
+          ),
         3 => _stepChips(
-          stepLabel: 'Step 3 of 6', title: 'WHAT ART DO YOU LOVE?',
-          subtitle: 'We\'ll personalize your Artyug feed based on your interests.',
-          options: _kCollectorInterests, selected: _interests,
-          onToggle: (v) => _interests.contains(v) ? _interests.remove(v) : _interests.add(v),
-        ),
+            title: 'Your Interests',
+            subtitle: 'Tell us what kind of art belongs in your feed.',
+            options: _kCollectorInterests,
+            selected: _interests,
+            onToggle: (value) {
+              setState(() {
+                _interests.contains(value)
+                    ? _interests.remove(value)
+                    : _interests.add(value);
+              });
+            },
+          ),
         4 => _stepPurchaseStyle(),
-        5 => _stepYesNo(
-          stepLabel: 'Step 5 of 6', title: 'EVENTS?',
-          subtitle: 'Interested in attending art exhibitions and events?',
-          value: _cWantsEvents, onChanged: (v) => _cWantsEvents = v,
-        ),
-        _ => _stepCompletion(isCreator: false),
+        5 => _stepEvents(isCreator: false),
+        6 => _stepGuilds(isCreator: false),
+        7 => _stepFollowCreators(isCreator: false),
+        8 => _stepFeedPreview(),
+        _ => _stepCompletion(),
       };
     }
 
     return const SizedBox.shrink();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final lightTheme = context.read<ThemeProvider>().lightTheme;
-    return Theme(
-      data: lightTheme,
-      child: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.dark.copyWith(
-          statusBarColor: Colors.transparent,
-          systemNavigationBarColor: Colors.white,
-          systemNavigationBarIconBrightness: Brightness.dark,
-        ),
-        child: Scaffold(
-          backgroundColor: _obCanvas,
-          body: SafeArea(
-            child: Column(children: [
-              // ── Progress bar ───────────────────────────────────────
-              LinearProgressIndicator(
-                value: _progress,
-                backgroundColor: AppColors.primary.withValues(alpha: 0.12),
-                valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
-                minHeight: 3,
-              ),
+  Widget _stepRoleSelect() {
+    return _StepShell(
+      stepText: _stepText(1),
+      title: 'Choose Your Path',
+      subtitle: 'Create culture or collect it. Your flow adapts instantly.',
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final stacked = constraints.maxWidth < 640;
+          final creatorCard = SelectableCard(
+            title: 'I am a Creator',
+            subtitle: 'Sell art, run events, and grow your community.',
+            icon: Icons.palette_outlined,
+            selected: _role == 'creator',
+            onTap: () => _onRoleSelected('creator'),
+          );
+          final collectorCard = SelectableCard(
+            title: 'I am a Collector',
+            subtitle: 'Discover, bid, and collect verified artwork.',
+            icon: Icons.auto_awesome_mosaic_outlined,
+            selected: _role == 'collector',
+            onTap: () => _onRoleSelected('collector'),
+          );
 
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // ── Logo ─────────────────────────────────────
-                  RichText(text: const TextSpan(children: [
-                    TextSpan(text: 'ARTYUG', style: TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.textOnLight, letterSpacing: -0.3,
-                    )),
-                    TextSpan(text: '.', style: TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.primary,
-                    )),
-                  ])),
+          if (stacked) {
+            return Column(
+              children: [
+                creatorCard,
+                const SizedBox(height: 12),
+                collectorCard,
+              ],
+            );
+          }
 
-                  const SizedBox(height: 32),
+          return Row(
+            children: [
+              Expanded(child: creatorCard),
+              const SizedBox(width: 12),
+              Expanded(child: collectorCard),
+            ],
+          );
+        },
+      ),
+    );
+  }
 
-                  // ── Step content ──────────────────────────────
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 220),
-                    transitionBuilder: (child, anim) => SlideTransition(
-                      position: Tween<Offset>(begin: const Offset(0.08, 0), end: Offset.zero)
-                          .animate(CurvedAnimation(parent: anim, curve: Curves.easeOut)),
-                      child: FadeTransition(opacity: anim, child: child),
-                    ),
-                    child: KeyedSubtree(key: ValueKey(_step), child: _buildStep()),
+  Widget _stepNameUsername({
+    required TextEditingController nameCtrl,
+    required TextEditingController usernameCtrl,
+    required bool isCreator,
+    required String namePlaceholder,
+  }) {
+    final normalizedUsername = _normalizeUsername(usernameCtrl.text);
+    final validUsername = _isValidUsername(normalizedUsername);
+    final status =
+        isCreator ? _creatorUsernameStatus : _collectorUsernameStatus;
+
+    return _StepShell(
+      stepText: _stepText(2),
+      title: 'Name + Username',
+      subtitle:
+          'Claim your identity. This is how the Artyug network finds you.',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ProfilePreviewCard(
+            displayName: nameCtrl.text.trim().isEmpty
+                ? (isCreator ? 'Creator Name' : 'Collector Name')
+                : nameCtrl.text.trim(),
+            username: normalizedUsername,
+            role: isCreator ? 'Creator' : 'Collector',
+            isVerified: status == _UsernameStatus.available,
+          ),
+          const SizedBox(height: 18),
+          _FieldLabel(text: 'Display Name'),
+          const SizedBox(height: 8),
+          _GlassInput(
+            controller: nameCtrl,
+            hint: namePlaceholder,
+            icon: Icons.person_outline,
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 14),
+          _FieldLabel(text: 'Username'),
+          const SizedBox(height: 8),
+          _GlassInput(
+            controller: usernameCtrl,
+            hint: 'e.g. priya_studio',
+            icon: Icons.alternate_email,
+            prefixText: '@',
+            inputFormatters: const [_UsernameFormatter()],
+            onChanged: (_) {
+              _scheduleUsernameAvailabilityCheck(
+                isCreator: isCreator,
+                usernameCtrl: usernameCtrl,
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '3-20 chars. Lowercase letters, numbers, underscore only.',
+            style: TextStyle(
+              fontSize: 12,
+              color:
+                  validUsername ? AppColors.primary : AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 10),
+          _UsernameAvailabilityRow(
+            status: status,
+            username: isCreator
+                ? _creatorUsernameLastChecked
+                : _collectorUsernameLastChecked,
+          ),
+          if (status == _UsernameStatus.available && validUsername) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0x2216A34A),
+                borderRadius: BorderRadius.circular(12),
+                border:
+                    Border.all(color: const Color(0xFF16A34A).withOpacity(0.6)),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF16A34A).withOpacity(0.25),
+                    blurRadius: 20,
+                    spreadRadius: 0,
                   ),
-
-                  const SizedBox(height: 48),
+                ],
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle_rounded,
+                      color: Color(0xFF16A34A), size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '@$normalizedUsername is yours on Artyug',
+                      style: const TextStyle(
+                        color: Color(0xFF6EE7A5),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _stepChips({
+    required String title,
+    required String subtitle,
+    required List<String> options,
+    required List<String> selected,
+    required ValueChanged<String> onToggle,
+  }) {
+    return _StepShell(
+      stepText: _stepText(_step),
+      title: title,
+      subtitle: subtitle,
+      child: Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: options
+            .map(
+              (option) => _SelectablePill(
+                label: option,
+                selected: selected.contains(option),
+                onTap: () => onToggle(option),
+              ),
+            )
+            .toList(),
+      ),
+    );
+  }
+
+  Widget _stepBio() {
+    return _StepShell(
+      stepText: _stepText(4),
+      title: 'Your Bio',
+      subtitle: 'Give collectors a quick sense of your voice and style.',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _GlassInput(
+            controller: _bioCtrl,
+            hint:
+                'e.g. Abstract painter exploring memory and landscape from Pune...',
+            maxLength: 300,
+            minLines: 4,
+            maxLines: 7,
+            onChanged: (_) => setState(() {}),
           ),
+        ],
+      ),
+    );
+  }
 
-          // ── Navigation bar ─────────────────────────────────────
-          Container(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border(top: BorderSide(color: _obBorder)),
+  Widget _stepSellTypes() {
+    return _StepShell(
+      stepText: _stepText(5),
+      title: 'What Do You Sell',
+      subtitle: 'Select everything you currently offer on your profile.',
+      child: Column(
+        children: _kSellTypes.map((item) {
+          final id = item['id']! as String;
+          final selected = _sellTypes.contains(id);
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: SelectableCard(
+              title: item['label']! as String,
+              icon: item['icon']! as IconData,
+              selected: selected,
+              onTap: () {
+                setState(() {
+                  selected ? _sellTypes.remove(id) : _sellTypes.add(id);
+                });
+              },
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                if (_step > 1)
-                  TextButton.icon(
-                    onPressed: _back,
-                    icon: const Icon(Icons.arrow_back_rounded, size: 18),
-                    label: const Text('Back'),
-                    style: TextButton.styleFrom(foregroundColor: AppColors.textOnLightSecondary),
-                  )
-                else
-                  const SizedBox(width: 80),
+          );
+        }).toList(),
+      ),
+    );
+  }
 
-                SizedBox(
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: _canContinue && !_saving
-                        ? () async => _next()
-                        : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 32),
+  Widget _stepEvents({required bool isCreator}) {
+    final value = isCreator ? _wantsEvents : _cWantsEvents;
+    return _StepShell(
+      stepText: _stepText(isCreator ? 6 : 5),
+      title: 'Events',
+      subtitle: isCreator
+          ? 'Interested in hosting or joining art events on Artyug?'
+          : 'Interested in attending exhibitions and event drops?',
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: SelectableCard(
+                  title: 'Yes, I am in',
+                  icon: Icons.check_circle_outline,
+                  selected: value == true,
+                  onTap: () => setState(() {
+                    if (isCreator) {
+                      _wantsEvents = true;
+                    } else {
+                      _cWantsEvents = true;
+                    }
+                  }),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: SelectableCard(
+                  title: 'Not right now',
+                  icon: Icons.pause_circle_outline,
+                  selected: value == false,
+                  onTap: () => setState(() {
+                    if (isCreator) {
+                      _wantsEvents = false;
+                    } else {
+                      _cWantsEvents = false;
+                    }
+                  }),
+                ),
+              ),
+            ],
+          ),
+          if (isCreator && _wantsEvents == true) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppColors.primaryLight,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.primary.withOpacity(0.5)),
+              ),
+              child: const Text(
+                'Great. You will see creator event tools once onboarding is complete.',
+                style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _stepGuilds({required bool isCreator}) {
+    return _StepShell(
+      stepText: _stepText(isCreator ? 7 : 6),
+      title: isCreator ? 'Join Guilds' : 'Join Guilds / Communities',
+      subtitle:
+          'Optional. Pick one or more communities to personalize your graph.',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_loadingGuilds)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                child: CircularProgressIndicator(
+                    strokeWidth: 2.8, color: AppColors.primary),
+              ),
+            )
+          else ...[
+            ..._guildSuggestions.map(
+              (guild) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: GuildCard(
+                  guild: guild,
+                  joined: _joinedGuildIds.contains(guild.id),
+                  onToggle: () => _toggleGuild(guild.id),
+                ),
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'You can skip now and join more communities later from Guild.',
+              style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary.withOpacity(0.9)),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _stepFollowCreators({required bool isCreator}) {
+    return _StepShell(
+      stepText: _stepText(isCreator ? 8 : 7),
+      title: isCreator ? 'Follow Creators' : 'Follow Artists',
+      subtitle: 'Optional. Follow at least one account or skip for now.',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_loadingCreators)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                child: CircularProgressIndicator(
+                    strokeWidth: 2.8, color: AppColors.primary),
+              ),
+            )
+          else ...[
+            ..._creatorSuggestions.take(10).map(
+                  (creator) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: CreatorFollowCard(
+                      creator: creator,
+                      followed: _followedCreatorIds.contains(creator.id),
+                      onToggle: () => _toggleFollow(creator.id),
                     ),
-                    child: _saving
-                        ? const SizedBox(
-                            width: 20, height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                            ),
-                          )
-                        : Row(mainAxisSize: MainAxisSize.min, children: [
-                            Text(
-                              _step == _totalSteps ? 'Enter Artyug' : 'Continue',
-                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-                            ),
-                            const SizedBox(width: 6),
-                            Icon(_step == _totalSteps ? Icons.east : Icons.chevron_right, size: 18),
-                          ]),
                   ),
+                ),
+            const SizedBox(height: 4),
+            Text(
+              _creatorSuggestions.isEmpty
+                  ? 'No creators found right now. You can continue and follow later.'
+                  : 'Following helps shape your first feed instantly.',
+              style:
+                  const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _stepFeedPreview() {
+    final interests = _isCreator ? _categories : _interests;
+    final joinedGuilds = _guildSuggestions
+        .where((guild) => _joinedGuildIds.contains(guild.id))
+        .map((guild) => guild.name)
+        .toList();
+    final followed = _creatorSuggestions
+        .where((creator) => _followedCreatorIds.contains(creator.id))
+        .toList();
+
+    return _StepShell(
+      stepText: _stepText(_isCreator ? 9 : 8),
+      title: 'Your Artyug Is Ready',
+      subtitle: 'Here is a personalized first-look based on your choices.',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          FeedPreviewCard(
+            title: interests.isEmpty
+                ? 'Recommended Discoveries'
+                : '${interests.first} Spotlight',
+            subtitle: joinedGuilds.isNotEmpty
+                ? 'Because you joined ${joinedGuilds.take(2).join(' + ')}'
+                : 'Curated from trending creators in your network',
+            accentColor: const Color(0xFFFF7A3B),
+          ),
+          const SizedBox(height: 10),
+          FeedPreviewCard(
+            title: followed.isNotEmpty
+                ? 'New from @${followed.first.username}'
+                : 'Top creators to follow this week',
+            subtitle: followed.isNotEmpty
+                ? 'Fresh uploads and auction updates'
+                : 'A mix of rising and established creators',
+            accentColor: const Color(0xFF4F8BFF),
+          ),
+          const SizedBox(height: 10),
+          FeedPreviewCard(
+            title: _isCreator
+                ? 'Collector activity near you'
+                : 'Upcoming gallery events',
+            subtitle: 'Personalized invites and drops based on your profile',
+            accentColor: const Color(0xFF2BB673),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _stepCompletion() {
+    final mediumOrInterest = _isCreator ? _categories : _interests;
+    return _StepShell(
+      stepText: _stepText(_totalSteps),
+      title: _isCreator
+          ? 'You Are Ready To Launch'
+          : 'Your Collector Vault Is Ready',
+      subtitle: 'One tap away from your personalized Artyug experience.',
+      child: Column(
+        children: [
+          Container(
+            width: 92,
+            height: 92,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const LinearGradient(
+                colors: [Color(0xFFFF8D5A), Color(0xFFFF6A2B)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withOpacity(0.45),
+                  blurRadius: 26,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+            child:
+                const Icon(Icons.check_rounded, size: 46, color: Colors.white),
+          ),
+          const SizedBox(height: 18),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.surface.withOpacity(0.76),
+              borderRadius: BorderRadius.circular(14),
+              border:
+                  Border.all(color: AppColors.borderStrong.withOpacity(0.6)),
+            ),
+            child: Column(
+              children: [
+                _SummaryRow(
+                    label: 'Name',
+                    value: _activeName.isEmpty ? '-' : _activeName),
+                _SummaryRow(
+                  label: 'Username',
+                  value: _activeUsername.isEmpty ? '-' : '@${_activeUsername}',
+                ),
+                _SummaryRow(
+                    label: 'Role', value: _isCreator ? 'Creator' : 'Collector'),
+                _SummaryRow(
+                  label: _isCreator ? 'Mediums' : 'Interests',
+                  value: mediumOrInterest.isEmpty
+                      ? 'Not selected'
+                      : mediumOrInterest.take(2).join(', '),
+                ),
+                _SummaryRow(
+                  label: 'Guilds Joined',
+                  value: _joinedGuildIds.isEmpty
+                      ? '0'
+                      : _joinedGuildIds.length.toString(),
+                ),
+                _SummaryRow(
+                  label: 'Creators Followed',
+                  value: _followedCreatorIds.isEmpty
+                      ? '0'
+                      : _followedCreatorIds.length.toString(),
                 ),
               ],
             ),
           ),
-            ]),
+          if (_error != null) ...[
+            const SizedBox(height: 12),
+            Text(_error!,
+                style: const TextStyle(color: Color(0xFFDC2626), fontSize: 13)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _stepPurchaseStyle() {
+    return _StepShell(
+      stepText: _stepText(4),
+      title: 'Purchase Style',
+      subtitle: 'Tell us how you usually acquire art pieces.',
+      child: Column(
+        children: _kPurchaseStyles.map((option) {
+          final selected = _purchaseStyle == option['id'];
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: SelectableCard(
+              title: option['label']!,
+              subtitle: option['sub'],
+              selected: selected,
+              icon: Icons.style_outlined,
+              onTap: () => setState(() => _purchaseStyle = option['id']!),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light.copyWith(
+        statusBarColor: Colors.transparent,
+        systemNavigationBarColor: const Color(0xFF070B12),
+        systemNavigationBarIconBrightness: Brightness.light,
+      ),
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        body: Stack(
+          children: [
+            PremiumBackground(animation: _bgController),
+            SafeArea(
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                    child: _ProgressHeader(
+                        step: _step,
+                        totalSteps: _totalSteps,
+                        progress: _progress),
+                  ),
+                  const SizedBox(height: 10),
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final maxWidth = constraints.maxWidth > 900
+                            ? 860.0
+                            : constraints.maxWidth;
+                        return Align(
+                          alignment: Alignment.topCenter,
+                          child: SizedBox(
+                            width: maxWidth,
+                            child: Column(
+                              children: [
+                                Expanded(
+                                  child: SingleChildScrollView(
+                                    padding: const EdgeInsets.fromLTRB(
+                                        16, 8, 16, 24),
+                                    child: AnimatedSwitcher(
+                                      duration:
+                                          const Duration(milliseconds: 280),
+                                      transitionBuilder: (child, animation) {
+                                        final curved = CurvedAnimation(
+                                          parent: animation,
+                                          curve: Curves.easeOutCubic,
+                                        );
+                                        return FadeTransition(
+                                          opacity: curved,
+                                          child: SlideTransition(
+                                            position: Tween<Offset>(
+                                              begin: const Offset(0.06, 0),
+                                              end: Offset.zero,
+                                            ).animate(curved),
+                                            child: child,
+                                          ),
+                                        );
+                                      },
+                                      child: KeyedSubtree(
+                                        key: ValueKey('$_role-$_step'),
+                                        child: _buildStep(),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                _BottomNavBar(
+                                  showBack: _step > 1,
+                                  isLoading: _saving,
+                                  canContinue: _canContinue && !_saving,
+                                  isLast: _step == _totalSteps,
+                                  onBack: _back,
+                                  onContinue: _next,
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class PremiumBackground extends StatelessWidget {
+  final Animation<double> animation;
+  const PremiumBackground({super.key, required this.animation});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, _) {
+        final t = animation.value;
+        return Stack(
+          children: [
+            Container(color: const Color(0xFF060A12)),
+            Align(
+              alignment: Alignment(-0.8 + (t * 0.3), -0.9 + (t * 0.2)),
+              child: const _RadialGlow(
+                size: 320,
+                color: Color(0x66FF6A2B),
+              ),
+            ),
+            Align(
+              alignment: Alignment(0.9 - (t * 0.2), -0.4 + (t * 0.4)),
+              child: const _RadialGlow(
+                size: 300,
+                color: Color(0x444F8BFF),
+              ),
+            ),
+            Align(
+              alignment: Alignment(-0.3 + (t * 0.4), 0.95 - (t * 0.2)),
+              child: const _RadialGlow(
+                size: 380,
+                color: Color(0x332BB673),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _RadialGlow extends StatelessWidget {
+  final double size;
+  final Color color;
+  const _RadialGlow({required this.size, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            colors: [color, color.withOpacity(0.02)],
           ),
         ),
       ),
@@ -876,197 +1478,866 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 }
 
-// ─── Reusable Widgets ────────────────────────────────────────────────────────
+class _ProgressHeader extends StatelessWidget {
+  final int step;
+  final int totalSteps;
+  final double progress;
 
-class _StepLabel extends StatelessWidget {
-  final String text;
-  const _StepLabel(this.text);
+  const _ProgressHeader({
+    required this.step,
+    required this.totalSteps,
+    required this.progress,
+  });
+
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 10),
-    child: Text(text.toUpperCase(), style: const TextStyle(
-      fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.primary, letterSpacing: 1.5,
-    )),
-  );
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.06),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withOpacity(0.14)),
+          ),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  const Text(
+                    'ARTYUG',
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 15,
+                      letterSpacing: 0.7,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '$step / $totalSteps',
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: LinearProgressIndicator(
+                  value: progress,
+                  minHeight: 6,
+                  backgroundColor: Colors.white.withOpacity(0.08),
+                  valueColor:
+                      const AlwaysStoppedAnimation<Color>(AppColors.primary),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
-class _Label extends StatelessWidget {
-  final String text;
-  const _Label(this.text);
-  @override
-  Widget build(BuildContext context) => Text(text.toUpperCase(), style: const TextStyle(
-    fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.textOnLightSecondary, letterSpacing: 1.2,
-  ));
-}
-
-class _RoleCard extends StatelessWidget {
+class _StepShell extends StatelessWidget {
+  final String stepText;
   final String title;
   final String subtitle;
-  final IconData icon;
-  final bool selected;
-  final VoidCallback onTap;
-  const _RoleCard({required this.title, required this.subtitle, required this.icon, required this.selected, required this.onTap});
+  final Widget child;
+
+  const _StepShell({
+    required this.stepText,
+    required this.title,
+    required this.subtitle,
+    required this.child,
+  });
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
-    child: AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: selected ? AppColors.primaryLight : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: selected ? AppColors.primary : _obBorder, width: selected ? 2 : 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 44, height: 44,
-            decoration: BoxDecoration(
-              color: selected ? AppColors.primary : _obIconTint,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, size: 22, color: selected ? Colors.white : AppColors.primary),
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.07),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withOpacity(0.15)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                blurRadius: 24,
+                offset: const Offset(0, 10),
+              ),
+            ],
           ),
-          const SizedBox(height: 14),
-          Text(title, style: TextStyle(
-            fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.textOnLight,
-          )),
-          const SizedBox(height: 4),
-          Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.textOnLightSecondary, height: 1.4)),
-        ],
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                stepText.toUpperCase(),
+                style: const TextStyle(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 11,
+                  letterSpacing: 1.3,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                title.toUpperCase(),
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 30,
+                  height: 1.05,
+                  letterSpacing: -0.7,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                subtitle,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 14,
+                  height: 1.45,
+                ),
+              ),
+              const SizedBox(height: 20),
+              child,
+            ],
+          ),
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
-class _Chip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-  const _Chip({required this.label, required this.selected, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
-    child: AnimatedContainer(
-      duration: const Duration(milliseconds: 160),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: selected ? AppColors.primary : Colors.white,
-        borderRadius: BorderRadius.circular(100),
-        border: Border.all(color: selected ? AppColors.primary : _obBorder),
-      ),
-      child: Text(label, style: TextStyle(
-        fontSize: 13, fontWeight: FontWeight.w600,
-        color: selected ? Colors.white : AppColors.textOnLight,
-      )),
-    ),
-  );
-}
-
-class _SelectCard extends StatelessWidget {
+class SelectableCard extends StatelessWidget {
   final String title;
   final String? subtitle;
   final IconData? icon;
   final bool selected;
-  final bool radio;
   final VoidCallback onTap;
-  const _SelectCard({required this.title, this.subtitle, this.icon, required this.selected, this.radio = false, required this.onTap});
+
+  const SelectableCard({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.icon,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
-    child: AnimatedContainer(
-      duration: const Duration(milliseconds: 160),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: selected ? AppColors.primaryLight : Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: selected ? AppColors.primary : _obBorder, width: selected ? 2 : 1),
-      ),
-      child: Row(children: [
-        if (radio)
-          Container(
-            width: 20, height: 20, margin: const EdgeInsets.only(right: 14),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: selected ? AppColors.primary : _obBorder, width: 2),
-              color: selected ? AppColors.primary : Colors.white,
-            ),
-            child: selected ? const Icon(Icons.circle, size: 10, color: Colors.white) : null,
-          )
-        else if (icon != null)
-          Container(
-            width: 36, height: 36, margin: const EdgeInsets.only(right: 14),
-            decoration: BoxDecoration(
-              color: selected ? AppColors.primary : _obIconTint,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, size: 18, color: selected ? Colors.white : AppColors.primary),
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: selected
+              ? AppColors.primary.withOpacity(0.15)
+              : Colors.white.withOpacity(0.04),
+          border: Border.all(
+            color:
+                selected ? AppColors.primary : Colors.white.withOpacity(0.16),
+            width: selected ? 1.4 : 1,
           ),
-        Expanded(child: Column(
+          boxShadow: [
+            if (selected)
+              BoxShadow(
+                color: AppColors.primary.withOpacity(0.25),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+          ],
+        ),
+        child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textOnLight)),
-            if (subtitle != null) Text(subtitle!, style: const TextStyle(fontSize: 12, color: AppColors.textOnLightSecondary, height: 1.4)),
+            if (icon != null)
+              Container(
+                width: 38,
+                height: 38,
+                margin: const EdgeInsets.only(right: 10),
+                decoration: BoxDecoration(
+                  color: selected
+                      ? AppColors.primary.withOpacity(0.22)
+                      : Colors.white.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: AppColors.textPrimary, size: 20),
+              ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                    ),
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle!,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12.5,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            AnimatedOpacity(
+              duration: const Duration(milliseconds: 160),
+              opacity: selected ? 1 : 0,
+              child: const Icon(Icons.check_circle_rounded,
+                  color: AppColors.primary, size: 18),
+            ),
           ],
-        )),
-        if (selected) const Icon(Icons.check_circle_rounded, color: AppColors.primary, size: 20),
-      ]),
-    ),
-  );
+        ),
+      ),
+    );
+  }
 }
 
-class _YesNoCard extends StatelessWidget {
+class GuildCard extends StatelessWidget {
+  final _GuildData guild;
+  final bool joined;
+  final VoidCallback onToggle;
+
+  const GuildCard({
+    super.key,
+    required this.guild,
+    required this.joined,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: joined ? AppColors.primary : Colors.white.withOpacity(0.14),
+          width: joined ? 1.4 : 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  guild.name,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              _TagLabel(text: guild.category),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            guild.description,
+            style: const TextStyle(
+                color: AppColors.textSecondary, fontSize: 12.5, height: 1.35),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Text(
+                '${guild.memberCount} members',
+                style: const TextStyle(
+                    color: AppColors.textSecondary, fontSize: 12),
+              ),
+              const Spacer(),
+              TextButton(
+                onPressed: onToggle,
+                style: TextButton.styleFrom(
+                  foregroundColor:
+                      joined ? AppColors.textPrimary : AppColors.primary,
+                  backgroundColor: joined
+                      ? AppColors.primary.withOpacity(0.22)
+                      : AppColors.primary.withOpacity(0.1),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                child: Text(joined ? 'Joined' : 'Join'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class CreatorFollowCard extends StatelessWidget {
+  final _CreatorSuggestion creator;
+  final bool followed;
+  final VoidCallback onToggle;
+
+  const CreatorFollowCard({
+    super.key,
+    required this.creator,
+    required this.followed,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final initials = creator.displayName.trim().isEmpty
+        ? 'A'
+        : creator.displayName
+            .trim()
+            .split(' ')
+            .take(2)
+            .map((word) => word.substring(0, 1).toUpperCase())
+            .join();
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: followed ? AppColors.primary : Colors.white.withOpacity(0.14),
+          width: followed ? 1.4 : 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 22,
+            backgroundColor: AppColors.primary.withOpacity(0.18),
+            child: Text(
+              initials,
+              style: const TextStyle(
+                  color: AppColors.textPrimary, fontWeight: FontWeight.w700),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  creator.displayName,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '@${creator.username}',
+                  style: const TextStyle(
+                      color: AppColors.textSecondary, fontSize: 12),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    _TagLabel(text: creator.medium),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${creator.followers} followers',
+                      style: const TextStyle(
+                          color: AppColors.textSecondary, fontSize: 11.5),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          TextButton(
+            onPressed: onToggle,
+            style: TextButton.styleFrom(
+              foregroundColor:
+                  followed ? AppColors.textPrimary : AppColors.primary,
+              backgroundColor: followed
+                  ? AppColors.primary.withOpacity(0.22)
+                  : AppColors.primary.withOpacity(0.08),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+            child: Text(followed ? 'Following' : 'Follow'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class ProfilePreviewCard extends StatelessWidget {
+  final String displayName;
+  final String username;
+  final String role;
+  final bool isVerified;
+
+  const ProfilePreviewCard({
+    super.key,
+    required this.displayName,
+    required this.username,
+    required this.role,
+    required this.isVerified,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final initials = displayName.isEmpty
+        ? 'A'
+        : displayName
+            .split(' ')
+            .where((word) => word.trim().isNotEmpty)
+            .take(2)
+            .map((word) => word.trim().substring(0, 1).toUpperCase())
+            .join();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        color: Colors.white.withOpacity(0.05),
+        border: Border.all(color: Colors.white.withOpacity(0.16)),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 21,
+            backgroundColor: AppColors.primary.withOpacity(0.18),
+            child: Text(
+              initials,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  displayName,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14.5,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Text(
+                      username.isEmpty ? '@username' : '@$username',
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                    if (isVerified) ...[
+                      const SizedBox(width: 6),
+                      const Icon(Icons.verified_rounded,
+                          color: Color(0xFF16A34A), size: 16),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+          _TagLabel(text: role),
+        ],
+      ),
+    );
+  }
+}
+
+class FeedPreviewCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final Color accentColor;
+
+  const FeedPreviewCard({
+    super.key,
+    required this.title,
+    required this.subtitle,
+    required this.accentColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withOpacity(0.14)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 8,
+            height: 56,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(999),
+              gradient: LinearGradient(
+                colors: [accentColor, accentColor.withOpacity(0.2)],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12.5,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BottomNavBar extends StatelessWidget {
+  final bool showBack;
+  final bool isLoading;
+  final bool canContinue;
+  final bool isLast;
+  final VoidCallback onBack;
+  final Future<void> Function() onContinue;
+
+  const _BottomNavBar({
+    required this.showBack,
+    required this.isLoading,
+    required this.canContinue,
+    required this.isLast,
+    required this.onBack,
+    required this.onContinue,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withOpacity(0.13)),
+            ),
+            child: Row(
+              children: [
+                if (showBack)
+                  TextButton.icon(
+                    onPressed: onBack,
+                    icon: const Icon(Icons.arrow_back_rounded, size: 18),
+                    label: const Text('Back'),
+                    style: TextButton.styleFrom(
+                        foregroundColor: AppColors.textSecondary),
+                  )
+                else
+                  const SizedBox(width: 80),
+                const Spacer(),
+                SizedBox(
+                  height: 46,
+                  child: ElevatedButton(
+                    onPressed: canContinue ? () => onContinue() : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor:
+                          AppColors.surfaceHigh.withOpacity(0.7),
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: isLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.6,
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                isLast ? 'Enter Artyug' : 'Continue',
+                                style: const TextStyle(
+                                    fontSize: 15, fontWeight: FontWeight.w800),
+                              ),
+                              const SizedBox(width: 6),
+                              Icon(
+                                  isLast
+                                      ? Icons.east_rounded
+                                      : Icons.chevron_right_rounded,
+                                  size: 18),
+                            ],
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TagLabel extends StatelessWidget {
+  final String text;
+  const _TagLabel({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withOpacity(0.13),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.primary.withOpacity(0.35)),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: AppColors.textPrimary,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _FieldLabel extends StatelessWidget {
+  final String text;
+  const _FieldLabel({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text.toUpperCase(),
+      style: const TextStyle(
+        color: AppColors.textSecondary,
+        fontWeight: FontWeight.w800,
+        fontSize: 10.5,
+        letterSpacing: 1.1,
+      ),
+    );
+  }
+}
+
+class _GlassInput extends StatelessWidget {
+  final TextEditingController controller;
+  final String hint;
+  final IconData? icon;
+  final String? prefixText;
+  final int? maxLength;
+  final int minLines;
+  final int maxLines;
+  final List<TextInputFormatter>? inputFormatters;
+  final ValueChanged<String>? onChanged;
+
+  const _GlassInput({
+    required this.controller,
+    required this.hint,
+    this.icon,
+    this.prefixText,
+    this.maxLength,
+    this.minLines = 1,
+    this.maxLines = 1,
+    this.inputFormatters,
+    this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      minLines: minLines,
+      maxLines: maxLines,
+      maxLength: maxLength,
+      inputFormatters: inputFormatters,
+      style: const TextStyle(
+        color: AppColors.textPrimary,
+        fontSize: 14.5,
+        fontWeight: FontWeight.w600,
+      ),
+      onChanged: onChanged,
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: const TextStyle(color: AppColors.textTertiary),
+        prefixText: prefixText,
+        prefixStyle: const TextStyle(
+            color: AppColors.textPrimary, fontWeight: FontWeight.w800),
+        prefixIcon: icon == null
+            ? null
+            : Icon(icon, size: 19, color: AppColors.textSecondary),
+        filled: true,
+        fillColor: Colors.white.withOpacity(0.04),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.16)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.primary, width: 1.4),
+        ),
+      ),
+    );
+  }
+}
+
+class _SelectablePill extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
-  const _YesNoCard({required this.label, required this.selected, required this.onTap});
+
+  const _SelectablePill({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
-    child: AnimatedContainer(
-      duration: const Duration(milliseconds: 160),
-      padding: const EdgeInsets.symmetric(vertical: 18),
-      decoration: BoxDecoration(
-        color: selected ? AppColors.primaryLight : Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: selected ? AppColors.primary : _obBorder, width: selected ? 2 : 1),
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(999),
+          color: selected
+              ? AppColors.primary.withOpacity(0.16)
+              : Colors.white.withOpacity(0.05),
+          border: Border.all(
+            color:
+                selected ? AppColors.primary : Colors.white.withOpacity(0.14),
+            width: selected ? 1.3 : 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? AppColors.textPrimary : AppColors.textSecondary,
+            fontWeight: FontWeight.w700,
+            fontSize: 12.5,
+          ),
+        ),
       ),
-      child: Center(child: Text(label, style: TextStyle(
-        fontSize: 14, fontWeight: FontWeight.w700,
-        color: selected ? AppColors.primary : AppColors.textOnLight,
-      ))),
-    ),
-  );
+    );
+  }
 }
 
 class _SummaryRow extends StatelessWidget {
   final String label;
   final String value;
-  const _SummaryRow(this.label, this.value);
+
+  const _SummaryRow({required this.label, required this.value});
+
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 12),
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: const TextStyle(fontSize: 13, color: AppColors.textOnLightSecondary)),
-        Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textOnLight)),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style:
+                  const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w800,
+              fontSize: 13,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _UsernameFormatter extends TextInputFormatter {
+  const _UsernameFormatter();
+
   @override
-  TextEditingValue formatEditUpdate(TextEditingValue old, TextEditingValue newVal) {
-    var text = newVal.text.toLowerCase().replaceAll(RegExp(r'[^a-z0-9_]'), '');
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    var text =
+        newValue.text.toLowerCase().replaceAll(RegExp(r'[^a-z0-9_]'), '');
     if (text.length > 20) text = text.substring(0, 20);
-    return newVal.copyWith(
+    return newValue.copyWith(
       text: text,
       selection: TextSelection.collapsed(offset: text.length),
     );
@@ -1078,41 +2349,174 @@ enum _UsernameStatus { idle, checking, available, taken }
 class _UsernameAvailabilityRow extends StatelessWidget {
   final _UsernameStatus status;
   final String? username;
-  const _UsernameAvailabilityRow({required this.status, required this.username});
+
+  const _UsernameAvailabilityRow(
+      {required this.status, required this.username});
 
   @override
   Widget build(BuildContext context) {
-    final baseStyle = const TextStyle(fontSize: 12, fontWeight: FontWeight.w700);
-    return Row(
-      children: [
-        if (status == _UsernameStatus.checking) ...[
+    final style = const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700);
+
+    if (status == _UsernameStatus.checking) {
+      return Row(
+        children: [
           const SizedBox(
             width: 14,
             height: 14,
             child: CircularProgressIndicator(strokeWidth: 2),
           ),
           const SizedBox(width: 8),
-          Text('Checking…', style: baseStyle.copyWith(color: AppColors.textOnLightSecondary)),
-        ] else if (status == _UsernameStatus.available) ...[
-          const Icon(Icons.check_circle_rounded, size: 16, color: Color(0xFF16A34A)),
+          Text('Checking availability...',
+              style: style.copyWith(color: AppColors.textSecondary)),
+        ],
+      );
+    }
+
+    if (status == _UsernameStatus.available) {
+      return Row(
+        children: [
+          const Icon(Icons.check_circle_rounded,
+              size: 16, color: Color(0xFF16A34A)),
           const SizedBox(width: 8),
-          Text('Username is available', style: baseStyle.copyWith(color: const Color(0xFF16A34A))),
-        ] else if (status == _UsernameStatus.taken) ...[
+          Text('Username is available',
+              style: style.copyWith(color: const Color(0xFF6EE7A5))),
+        ],
+      );
+    }
+
+    if (status == _UsernameStatus.taken) {
+      return Row(
+        children: [
           const Icon(Icons.cancel_rounded, size: 16, color: Color(0xFFDC2626)),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              username == null ? 'Username is already taken' : '@$username is already taken',
-              style: baseStyle.copyWith(color: const Color(0xFFDC2626)),
+              username == null
+                  ? 'Username is already taken'
+                  : '@$username is already taken',
+              style: style.copyWith(color: const Color(0xFFF87171)),
               overflow: TextOverflow.ellipsis,
             ),
           ),
-        ] else ...[
-          const Icon(Icons.info_outline, size: 16, color: AppColors.textOnLightSecondary),
-          const SizedBox(width: 8),
-          Text('Pick a unique username', style: baseStyle.copyWith(color: AppColors.textOnLightSecondary)),
         ],
+      );
+    }
+
+    return Row(
+      children: [
+        const Icon(Icons.info_outline,
+            size: 16, color: AppColors.textSecondary),
+        const SizedBox(width: 8),
+        Text('Pick a unique username',
+            style: style.copyWith(color: AppColors.textSecondary)),
       ],
     );
   }
+}
+
+class _OptionalWriteAttempt {
+  final String table;
+  final List<Map<String, dynamic>> rows;
+  final String? onConflict;
+
+  const _OptionalWriteAttempt({
+    required this.table,
+    required this.rows,
+    this.onConflict,
+  });
+}
+
+class _GuildData {
+  final String id;
+  final String name;
+  final String description;
+  final int memberCount;
+  final String category;
+
+  const _GuildData({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.memberCount,
+    required this.category,
+  });
+
+  static _GuildData? fromRow(Map<String, dynamic> row) {
+    final id = row['id']?.toString();
+    final name = (row['name'] ?? row['title'] ?? row['community_name'])
+        ?.toString()
+        .trim();
+    if (id == null || id.isEmpty || name == null || name.isEmpty) return null;
+
+    final description = (row['description'] ??
+            row['about'] ??
+            row['bio'] ??
+            'Creative community')
+        .toString();
+    final category =
+        (row['category'] ?? row['medium'] ?? row['type'] ?? 'Community')
+            .toString();
+    final memberCount = _toInt(
+      row['member_count'] ??
+          row['members_count'] ??
+          row['members'] ??
+          row['total_members'],
+    );
+
+    return _GuildData(
+      id: id,
+      name: name,
+      description: description,
+      memberCount: memberCount > 0 ? memberCount : 100,
+      category: category,
+    );
+  }
+}
+
+class _CreatorSuggestion {
+  final String id;
+  final String displayName;
+  final String username;
+  final String medium;
+  final int followers;
+
+  const _CreatorSuggestion({
+    required this.id,
+    required this.displayName,
+    required this.username,
+    required this.medium,
+    required this.followers,
+  });
+
+  static _CreatorSuggestion? fromProfileRow(Map<String, dynamic> row) {
+    final id = row['id']?.toString();
+    if (id == null || id.isEmpty) return null;
+
+    final username = (row['username'] ?? '').toString().trim();
+    if (username.isEmpty) return null;
+
+    final displayName =
+        (row['display_name'] ?? row['full_name'] ?? username).toString().trim();
+
+    final bio = (row['bio'] ?? '').toString().toLowerCase();
+    var medium = 'Creator';
+    if (bio.contains('photo')) medium = 'Photography';
+    if (bio.contains('digital')) medium = 'Digital Art';
+    if (bio.contains('paint')) medium = 'Painting';
+
+    return _CreatorSuggestion(
+      id: id,
+      displayName: displayName,
+      username: username,
+      medium: medium,
+      followers: 1000,
+    );
+  }
+}
+
+int _toInt(dynamic value) {
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  if (value == null) return 0;
+  return int.tryParse(value.toString()) ?? 0;
 }

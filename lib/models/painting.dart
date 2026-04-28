@@ -15,6 +15,22 @@ class PaintingModel {
   final bool isSold;
   final List<String>? styleTags;
   final String? category;
+  final String? style;
+  final String? listingType;
+  final String? status;
+  final String? currency;
+  final String? creatorLocation;
+  final String? shopId;
+  final String? collectionId;
+  final String? nfcStatus;
+  final String? solanaTxId;
+  final bool isVerifiedArtwork;
+  final bool nfcAttached;
+  final int viewsCount;
+  final int bidsCount;
+  final int purchasesCount;
+  final int? yearCreated;
+  final String? sizeText;
   final bool isBoosted;
   final DateTime? boostExpiresAt;
   final DateTime? createdAt;
@@ -43,6 +59,22 @@ class PaintingModel {
     this.isSold = false,
     this.styleTags,
     this.category,
+    this.style,
+    this.listingType,
+    this.status,
+    this.currency,
+    this.creatorLocation,
+    this.shopId,
+    this.collectionId,
+    this.nfcStatus,
+    this.solanaTxId,
+    this.isVerifiedArtwork = false,
+    this.nfcAttached = false,
+    this.viewsCount = 0,
+    this.bidsCount = 0,
+    this.purchasesCount = 0,
+    this.yearCreated,
+    this.sizeText,
     this.isBoosted = false,
     this.boostExpiresAt,
     this.createdAt,
@@ -74,6 +106,24 @@ class PaintingModel {
           ?.map((e) => e.toString())
           .toList(),
       category: json['category'] as String?,
+      style: json['style'] as String?,
+      listingType: json['listing_type'] as String?,
+      status: json['status'] as String?,
+      currency: json['currency'] as String?,
+      creatorLocation: json['creator_location'] as String?,
+      shopId: json['shop_id'] as String?,
+      collectionId: json['collection_id'] as String?,
+      nfcStatus: json['nfc_status'] as String?,
+      solanaTxId: json['solana_tx_id'] as String?,
+      isVerifiedArtwork: (json['is_verified_artwork'] as bool?) ??
+          (json['is_verified'] as bool?) ??
+          false,
+      nfcAttached: json['nfc_attached'] as bool? ?? false,
+      viewsCount: (json['views_count'] as num?)?.toInt() ?? 0,
+      bidsCount: (json['bids_count'] as num?)?.toInt() ?? 0,
+      purchasesCount: (json['purchases_count'] as num?)?.toInt() ?? 0,
+      yearCreated: (json['year_created'] as num?)?.toInt(),
+      sizeText: json['size_text'] as String?,
       isBoosted: json['is_boosted'] as bool? ?? false,
       boostExpiresAt: json['boost_expires_at'] != null
           ? DateTime.tryParse(json['boost_expires_at'] as String)
@@ -86,7 +136,8 @@ class PaintingModel {
           json['artist_display_name'] as String?,
       artistProfilePictureUrl: json['profile_picture_url'] as String? ??
           json['artist_profile_picture_url'] as String?,
-      artistIsVerified: json['is_verified'] as bool?,
+      artistIsVerified: (json['artist_is_verified'] as bool?) ??
+          (json['artist_verified'] as bool?),
       artistType: json['artist_type'] as String?,
       // Aggregates
       likesCount: (json['likes_count'] as num?)?.toInt() ?? 0,
@@ -99,6 +150,9 @@ class PaintingModel {
       : 'Price on request';
 
   bool get isAvailable => isForSale && !isSold;
+
+  bool get hasNfcAttached =>
+      nfcAttached || (nfcStatus != null && nfcStatus != 'not_attached');
 
   /// Resolved CDN URL for the primary artwork image (fixes stale Supabase
   /// hosts, bare storage paths, and falls back to [additionalImages]).

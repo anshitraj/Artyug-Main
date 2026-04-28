@@ -41,10 +41,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
   List<Map<String, dynamic>> _paintings = [];
   List<Map<String, dynamic>> _artists = [];
+  List<Map<String, dynamic>> _studios = [];
   List<Map<String, dynamic>> _searchResults = [];
   bool _loading = true;
   bool _searching = false;
   String _activeCategory = 'all';
+  String _studioCategory = 'all';
+  String _studioSort = 'trending';
   String? _loadError;
 
   final _categories = [
@@ -72,7 +75,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   Future<void> _fetchAll() async {
-    await Future.wait([_fetchPaintings(), _fetchArtists()]);
+    await Future.wait([_fetchPaintings(), _fetchArtists(), _fetchStudios()]);
   }
 
   Future<void> _fetchPaintings() async {
@@ -137,6 +140,67 @@ class _ExploreScreenState extends State<ExploreScreen> {
     } catch (_) {}
   }
 
+  Future<void> _fetchStudios() async {
+    try {
+      final raw = await _supabase
+          .from('shops')
+          .select(
+              'id, name, slug, description, avatar_url, category, created_at, likes_count, views_count, owner_id')
+          .eq('is_active', true)
+          .order('created_at', ascending: false)
+          .limit(28);
+
+      final rows = List<Map<String, dynamic>>.from(raw);
+      final ownerIds = rows
+          .map((e) => e['owner_id'] as String?)
+          .whereType<String>()
+          .toSet()
+          .toList();
+      final profilesById = <String, Map<String, dynamic>>{};
+
+      if (ownerIds.isNotEmpty) {
+        final profiles = await _supabase
+            .from('profiles')
+            .select('id, display_name, profile_picture_url')
+            .inFilter('id', ownerIds);
+        for (final p in List<Map<String, dynamic>>.from(profiles)) {
+          profilesById[p['id'] as String] = p;
+        }
+      }
+
+      for (final row in rows) {
+        final shopId = row['id'] as String;
+        try {
+          final worksCount = await _supabase
+              .from('paintings')
+              .select('id')
+              .eq('shop_id', shopId)
+              .count(CountOption.exact);
+          row['artworks_count'] = worksCount.count;
+        } catch (_) {
+          row['artworks_count'] = 0;
+        }
+        try {
+          final collectionsCount = await _supabase
+              .from('collections')
+              .select('id')
+              .eq('shop_id', shopId)
+              .count(CountOption.exact);
+          row['collections_count'] = collectionsCount.count;
+        } catch (_) {
+          row['collections_count'] = 0;
+        }
+        row['profile'] = profilesById[row['owner_id']] ?? <String, dynamic>{};
+      }
+
+      if (!mounted) return;
+      setState(() => _studios = rows);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _studios = const []);
+    }
+  }
+
   Future<void> _search(String term) async {
     if (term.trim().isEmpty) {
       setState(() => _searchResults = []);
@@ -165,6 +229,59 @@ class _ExploreScreenState extends State<ExploreScreen> {
       final cat = (p['category'] ?? '').toString().toLowerCase();
       return cat == _activeCategory || cat.contains(_activeCategory);
     }).toList();
+  }
+
+  List<Map<String, dynamic>> get _filteredStudios {
+    final term = _searchCtrl.text.trim().toLowerCase();
+    var list = List<Map<String, dynamic>>.from(_studios);
+    if (_studioCategory != 'all') {
+      list = list
+          .where((s) => (s['category'] ?? '')
+              .toString()
+              .toLowerCase()
+              .contains(_studioCategory))
+          .toList();
+    }
+    if (term.isNotEmpty) {
+      list = list.where((s) {
+        final name = (s['name'] ?? '').toString().toLowerCase();
+        final desc = (s['description'] ?? '').toString().toLowerCase();
+        final artist =
+            ((s['profile'] as Map<String, dynamic>?)?['display_name'] ?? '')
+                .toString()
+                .toLowerCase();
+        return name.contains(term) || desc.contains(term) || artist.contains(term);
+      }).toList();
+    }
+
+    list.sort((a, b) {
+      switch (_studioSort) {
+        case 'newest':
+          final ad = DateTime.tryParse((a['created_at'] ?? '').toString()) ??
+              DateTime(1970);
+          final bd = DateTime.tryParse((b['created_at'] ?? '').toString()) ??
+              DateTime(1970);
+          return bd.compareTo(ad);
+        case 'most_works':
+          return ((b['artworks_count'] as int? ?? 0))
+              .compareTo(a['artworks_count'] as int? ?? 0);
+        case 'most_followed':
+          return ((b['likes_count'] as int? ?? 0))
+              .compareTo(a['likes_count'] as int? ?? 0);
+        case 'trending':
+        default:
+          final as = ((a['views_count'] as int? ?? 0) * 1) +
+              ((a['likes_count'] as int? ?? 0) * 3) +
+              ((a['artworks_count'] as int? ?? 0) * 4) +
+              ((a['collections_count'] as int? ?? 0) * 2);
+          final bs = ((b['views_count'] as int? ?? 0) * 1) +
+              ((b['likes_count'] as int? ?? 0) * 3) +
+              ((b['artworks_count'] as int? ?? 0) * 4) +
+              ((b['collections_count'] as int? ?? 0) * 2);
+          return bs.compareTo(as);
+      }
+    });
+    return list;
   }
 
   @override
@@ -377,6 +494,90 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         const SizedBox(height: 20),
                       ],
 
+
+                      Text('STUDIOS',
+                          style: TextStyle(
+                              color: AppColors.textTertiaryOf(context),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.2)),
+                      const SizedBox(height: 10),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _studioFilterChip('All', 'all'),
+                            _studioFilterChip('Painting', 'painting'),
+                            _studioFilterChip('Digital', 'digital'),
+                            _studioFilterChip('Photography', 'photography'),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Text('${_filteredStudios.length} studios',
+                              style: TextStyle(
+                                  color: AppColors.textTertiaryOf(context),
+                                  fontSize: 12)),
+                          const Spacer(),
+                          DropdownButton<String>(
+                            value: _studioSort,
+                            underline: const SizedBox.shrink(),
+                            style: TextStyle(
+                                color: AppColors.textSecondaryOf(context)),
+                            dropdownColor: AppColors.surfaceOf(context),
+                            items: const [
+                              DropdownMenuItem(
+                                  value: 'trending', child: Text('Trending')),
+                              DropdownMenuItem(
+                                  value: 'newest', child: Text('Newest')),
+                              DropdownMenuItem(
+                                  value: 'most_works',
+                                  child: Text('Most Works')),
+                              DropdownMenuItem(
+                                  value: 'most_followed',
+                                  child: Text('Most Followed')),
+                            ],
+                            onChanged: (v) {
+                              if (v == null) return;
+                              setState(() => _studioSort = v);
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      if (_filteredStudios.isEmpty)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceOf(context),
+                            borderRadius: BorderRadius.circular(12),
+                            border:
+                                Border.all(color: AppColors.borderOf(context)),
+                          ),
+                          child: Text(
+                            'No studios match your current filters.',
+                            style: TextStyle(
+                                color: AppColors.textSecondaryOf(context),
+                                fontSize: 13),
+                          ),
+                        )
+                      else
+                        SizedBox(
+                          height: 132,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: _filteredStudios.length.clamp(0, 10),
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(width: 10),
+                            itemBuilder: (_, i) => _StudioDiscoveryCard(
+                              studio: _filteredStudios[i],
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 20),
                       // ── Section label ─────────────────────────────────
                       Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -448,6 +649,125 @@ class _ExploreScreenState extends State<ExploreScreen> {
                             ),
                           ),
                         ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _studioFilterChip(String label, String id) {
+    final active = _studioCategory == id;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: GestureDetector(
+        onTap: () => setState(() => _studioCategory = id),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: active ? AppColors.primary : AppColors.surfaceOf(context),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: active ? AppColors.primary : AppColors.borderOf(context),
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: active ? Colors.white : AppColors.textPrimaryOf(context),
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StudioDiscoveryCard extends StatelessWidget {
+  final Map<String, dynamic> studio;
+
+  const _StudioDiscoveryCard({required this.studio});
+
+  @override
+  Widget build(BuildContext context) {
+    final name = (studio['name'] as String?)?.trim().isNotEmpty == true
+        ? (studio['name'] as String).trim()
+        : 'Studio';
+    final slug = (studio['slug'] as String?)?.trim();
+    final avatar = (studio['avatar_url'] as String?)?.trim();
+    final profile = studio['profile'] as Map<String, dynamic>?;
+    final by = (profile?['display_name'] as String?)?.trim().isNotEmpty == true
+        ? (profile!['display_name'] as String).trim()
+        : 'Creator';
+    final works = (studio['artworks_count'] as int?) ?? 0;
+    final collections = (studio['collections_count'] as int?) ?? 0;
+
+    return GestureDetector(
+      onTap: () =>
+          context.push(slug != null && slug.isNotEmpty ? '/shop/$slug' : '/shop'),
+      child: Container(
+        width: 260,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceOf(context),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.borderOf(context)),
+        ),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 24,
+              backgroundColor: AppColors.primary.withValues(alpha: 0.16),
+              backgroundImage: (avatar != null && avatar.isNotEmpty)
+                  ? CachedNetworkImageProvider(avatar)
+                  : null,
+              child: (avatar == null || avatar.isEmpty)
+                  ? Text(
+                      name.substring(0, 1).toUpperCase(),
+                      style: const TextStyle(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    )
+                  : null,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: AppColors.textPrimaryOf(context),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'by $by',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: AppColors.textSecondaryOf(context),
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '$works works • $collections collections',
+                    style: TextStyle(
+                      color: AppColors.textTertiaryOf(context),
+                      fontSize: 11.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -688,3 +1008,4 @@ class _ArtworkCard extends StatelessWidget {
     );
   }
 }
+

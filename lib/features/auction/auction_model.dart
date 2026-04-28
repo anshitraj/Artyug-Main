@@ -16,7 +16,8 @@ class AuctionModel {
   final String? currentHighestBidderAvatarUrl;
   final DateTime startTime;
   final DateTime endTime;
-  final String status; // 'pending' | 'active' | 'ended' | 'cancelled'
+  final double bidIncrement;
+  final String status; // pending|upcoming|active|live|ended|settled|cancelled
   final int totalBids;
   final List<BidModel> recentBids;
   final PaintingModel? painting;
@@ -34,6 +35,7 @@ class AuctionModel {
     this.currentHighestBidderAvatarUrl,
     required this.startTime,
     required this.endTime,
+    this.bidIncrement = 500,
     required this.status,
     this.totalBids = 0,
     this.recentBids = const [],
@@ -41,9 +43,17 @@ class AuctionModel {
     this.createdAt,
   });
 
-  bool get isActive => status == 'active' && endTime.isAfter(DateTime.now());
-  bool get isEnded => status == 'ended' || endTime.isBefore(DateTime.now());
-  bool get isPending => status == 'pending';
+  bool get isActive =>
+      (status == 'active' || status == 'live') &&
+      endTime.isAfter(DateTime.now());
+
+  bool get isEnded =>
+      status == 'ended' ||
+      status == 'settled' ||
+      status == 'cancelled' ||
+      endTime.isBefore(DateTime.now());
+
+  bool get isPending => status == 'pending' || status == 'upcoming';
 
   Duration get timeRemaining {
     final remaining = endTime.difference(DateTime.now());
@@ -63,9 +73,7 @@ class AuctionModel {
 
   double get minimumNextBid {
     final current = currentHighestBid ?? startingPrice;
-    // Minimum increment: 5% or ₹500, whichever is higher
-    final pct = current * 0.05;
-    return current + (pct > 500 ? pct : 500);
+    return current + (bidIncrement > 0 ? bidIncrement : 500);
   }
 
   factory AuctionModel.fromJson(Map<String, dynamic> json,
@@ -89,6 +97,9 @@ class AuctionModel {
           json['current_highest_bidder_avatar_url'] as String?,
       startTime: DateTime.parse(json['start_time'] as String),
       endTime: DateTime.parse(json['end_time'] as String),
+      bidIncrement: json['bid_increment'] != null
+          ? (json['bid_increment'] as num).toDouble()
+          : 500,
       status: json['status'] as String? ?? 'pending',
       totalBids: (json['total_bids'] as num?)?.toInt() ?? 0,
       recentBids: bids ?? [],
@@ -108,7 +119,7 @@ class BidModel {
   final String? bidderAvatarUrl;
   final double amount;
   final DateTime createdAt;
-  final String status; // 'active' | 'outbid' | 'won'
+  final String status; // active|outbid|won
 
   const BidModel({
     required this.id,

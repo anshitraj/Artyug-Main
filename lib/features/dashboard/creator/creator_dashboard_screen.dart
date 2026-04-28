@@ -34,24 +34,40 @@ class _CreatorDashboardScreenState extends State<CreatorDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
-      body: Consumer<DashboardProvider>(
-        builder: (context, dash, _) {
-          if (dash.loading && dash.stats == null) {
-            return const Center(
-              child: CircularProgressIndicator(color: AppColors.primary),
-            );
-          }
-          if (dash.error != null && dash.stats == null) {
-            return Center(
-              child: Text(
-                dash.error!,
-                style: const TextStyle(color: AppColors.error),
-              ),
-            );
-          }
-          return _buildDashboard(dash);
-        },
+      backgroundColor: Colors.transparent,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => context.push('/upload'),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        elevation: 4,
+        icon: const Icon(Icons.add_photo_alternate_outlined, size: 22),
+        label: const Text('Upload Artwork',
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, letterSpacing: 0.3)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+      body: Stack(
+        children: [
+          const _PremiumBackdrop(),
+          Consumer<DashboardProvider>(
+            builder: (context, dash, _) {
+              if (dash.loading && dash.stats == null) {
+                return const Center(
+                  child: CircularProgressIndicator(color: AppColors.primary),
+                );
+              }
+              if (dash.error != null && dash.stats == null) {
+                return Center(
+                  child: Text(
+                    dash.error!,
+                    style: const TextStyle(color: AppColors.error),
+                  ),
+                );
+              }
+              return _buildDashboard(dash);
+            },
+          ),
+        ],
       ),
     );
   }
@@ -128,9 +144,37 @@ class _CreatorDashboardScreenState extends State<CreatorDashboardScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const _SectionTitle('Shortcuts'),
+                  const _SectionTitle('My Galleries'),
                   const SizedBox(height: 12),
                   _QuickActionsRow(onUpload: () => context.push('/upload')),
+                  const SizedBox(height: 10),
+                  _QuickAccessCard(
+                    icon: Icons.storefront_rounded,
+                    title: 'Manage Galleries',
+                    subtitle: 'Create, edit, or pause your galleries',
+                    onTap: () => context.push('/my-galleries'),
+                  ),
+                  const SizedBox(height: 10),
+                  _QuickAccessCard(
+                    icon: Icons.collections_bookmark_outlined,
+                    title: 'Manage Listings',
+                    subtitle: 'Drafts, active artworks, sold pieces',
+                    onTap: () => context.push('/shop'),
+                  ),
+                  const SizedBox(height: 10),
+                  _QuickAccessCard(
+                    icon: Icons.gavel_rounded,
+                    title: 'Manage Auctions',
+                    subtitle: 'View live auctions and incoming bids',
+                    onTap: () => context.push('/auctions'),
+                  ),
+                  const SizedBox(height: 10),
+                  _QuickAccessCard(
+                    icon: Icons.receipt_long_outlined,
+                    title: 'Sales & Orders',
+                    subtitle: 'Track completed sales and pending fulfillment',
+                    onTap: () => context.push('/orders'),
+                  ),
                   const SizedBox(height: 24),
                   const _SectionTitle('Authenticity'),
                   const SizedBox(height: 12),
@@ -141,17 +185,17 @@ class _CreatorDashboardScreenState extends State<CreatorDashboardScreen> {
                     onVerify: () => context.push('/authenticity-center'),
                   ),
                   const SizedBox(height: 24),
-                  const _SectionTitle('My artworks'),
+                  const _SectionTitle('My Artworks'),
                   const SizedBox(height: 12),
                   if (s.myArtworks.isEmpty)
                     const _EmptyState(
                       icon: Icons.palette_outlined,
                       message: 'No artworks yet',
-                      sub: 'Upload your first piece',
+                      sub: 'Tap the button below to upload your first piece',
                     )
                   else
                     _ArtworkStrip(artworks: s.myArtworks),
-                  const SizedBox(height: 100),
+                  const SizedBox(height: 160),
                 ],
               ),
             ),
@@ -187,7 +231,7 @@ class _StudioHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final canPop = context.canPop();
+    final canPop = Navigator.of(context).canPop();
     return Material(
       color: AppColors.surface,
       child: SafeArea(
@@ -203,35 +247,28 @@ class _StudioHeader extends StatelessWidget {
                     IconButton(
                       icon: const Icon(Icons.arrow_back_ios_new_rounded,
                           size: 20, color: AppColors.textPrimary),
-                      onPressed: () => context.pop(),
+                      onPressed: () => Navigator.of(context).pop(),
                     ),
                   if (!canPop) const SizedBox(width: 8),
-                  const Text(
-                    'ARTYUG',
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
+                  // Branded title
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceHigh,
+                      gradient: LinearGradient(colors: [
+                        AppColors.primary.withValues(alpha: 0.18),
+                        AppColors.primary.withValues(alpha: 0.06),
+                      ]),
                       borderRadius: BorderRadius.circular(100),
-                      border: Border.all(color: AppColors.border),
-                    ),
-                    child: const Text(
-                      'Artist Studio',
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
+                      border: Border.all(
+                        color: AppColors.primary.withValues(alpha: 0.4),
                       ),
                     ),
+                    child: const Row(children: [
+                      Icon(Icons.brush_rounded, color: AppColors.primary, size: 14),
+                      SizedBox(width: 5),
+                      Text('Creator Studio',
+                        style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 0.2)),
+                    ]),
                   ),
                   const Spacer(),
                   Row(
@@ -438,13 +475,29 @@ class _KpiTile extends StatelessWidget {
     final border = accent
         ? AppColors.primary.withValues(alpha: 0.35)
         : AppColors.border;
-    final bg = accent ? AppColors.primarySoft : AppColors.surfaceVariant;
+    final bg = accent
+        ? AppColors.primary.withValues(alpha: 0.14)
+        : AppColors.surfaceVariant.withValues(alpha: 0.68);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: bg,
+        gradient: LinearGradient(
+          colors: [
+            bg,
+            AppColors.surface.withValues(alpha: 0.72),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.22),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -672,9 +725,23 @@ class _RecentSalesPanel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceVariant,
+        gradient: LinearGradient(
+          colors: [
+            AppColors.surfaceVariant.withValues(alpha: 0.84),
+            AppColors.surface.withValues(alpha: 0.68),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.2),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -989,7 +1056,14 @@ class _EmptyState extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: AppColors.surfaceVariant,
+        gradient: LinearGradient(
+          colors: [
+            AppColors.surfaceVariant.withValues(alpha: 0.84),
+            AppColors.surface.withValues(alpha: 0.72),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.border),
       ),
@@ -1037,11 +1111,25 @@ class _AuthenticityCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.surfaceVariant,
+        gradient: LinearGradient(
+          colors: [
+            AppColors.surfaceVariant.withValues(alpha: 0.88),
+            AppColors.surface.withValues(alpha: 0.72),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: AppColors.primary.withValues(alpha: 0.28),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1146,6 +1234,148 @@ class _AuthenticityCard extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Compact tappable card for quick navigation links in the dashboard.
+class _QuickAccessCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _QuickAccessCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              AppColors.surfaceVariant.withValues(alpha: 0.86),
+              AppColors.surface.withValues(alpha: 0.72),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.border),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.18),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: AppColors.primary, size: 22),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 2),
+                  Text(subtitle,
+                      style: const TextStyle(
+                          color: AppColors.textTertiary, fontSize: 12)),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded,
+                color: AppColors.textTertiary, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PremiumBackdrop extends StatelessWidget {
+  const _PremiumBackdrop();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        color: AppColors.background,
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            top: -120,
+            left: -80,
+            child: _GlowOrb(
+              size: 320,
+              color: AppColors.primary.withValues(alpha: 0.2),
+            ),
+          ),
+          Positioned(
+            top: 180,
+            right: -100,
+            child: _GlowOrb(
+              size: 280,
+              color: const Color(0xFF3C6BFF).withValues(alpha: 0.14),
+            ),
+          ),
+          Positioned(
+            bottom: -120,
+            left: 40,
+            child: _GlowOrb(
+              size: 260,
+              color: const Color(0xFF0FD3A5).withValues(alpha: 0.1),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GlowOrb extends StatelessWidget {
+  final double size;
+  final Color color;
+
+  const _GlowOrb({required this.size, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            colors: [
+              color,
+              color.withValues(alpha: 0),
+            ],
+          ),
+        ),
       ),
     );
   }

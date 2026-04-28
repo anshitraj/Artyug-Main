@@ -50,6 +50,34 @@ This is the Flutter version of the ArtYug mobile application - a creative platfo
    flutter run -d android
    ```
 
+## Stitch MCP Setup
+
+This repo includes a project MCP config at `.mcp.json` for Stitch:
+
+```json
+{
+  "mcpServers": {
+    "stitch": {
+      "serverUrl": "https://stitch.googleapis.com/mcp",
+      "headers": {
+        "X-Goog-Api-Key": "${STITCH_API_KEY}"
+      }
+    }
+  }
+}
+```
+
+1. Add your key in `.env`:
+   - `STITCH_API_KEY=...`
+2. If your MCP client does not expand environment variables in JSON headers, replace `${STITCH_API_KEY}` directly in `.mcp.json` with the real key.
+3. Restart your MCP client/session.
+
+OAuth alternative:
+- Replace headers with:
+  - `Authorization: Bearer <YOUR_ACCESS_TOKEN>`
+  - `X-Goog-User-Project: <YOUR_PROJECT_ID>`
+- Refresh the access token when it expires (typically ~1 hour).
+
 ## Project Structure
 
 ```

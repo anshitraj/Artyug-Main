@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../models/painting.dart';
@@ -525,6 +526,10 @@ class _InfoChips extends StatelessWidget {
         (Icons.straighten_rounded, painting.dimensions!),
       if (painting.category != null)
         (Icons.category_rounded, painting.category!),
+      if (painting.listingType != null)
+        (Icons.sell_outlined, painting.listingType!.replaceAll('_', ' ')),
+      if (painting.yearCreated != null)
+        (Icons.calendar_month_outlined, '${painting.yearCreated}'),
     ];
 
     return Wrap(
@@ -565,6 +570,7 @@ class _ActionZone extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final listingType = painting.listingType ?? 'fixed_price';
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -577,18 +583,23 @@ class _ActionZone extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: painting.isAvailable
+                child: listingType == 'auction'
                     ? ElevatedButton.icon(
-                        onPressed: () => context
-                            .push('/checkout/${painting.id}', extra: painting),
-                        icon: const Icon(Icons.shopping_bag_rounded, size: 18),
-                        label: Text('Buy for ${painting.displayPrice}'),
+                        onPressed: () => _openAuction(context),
+                        icon: const Icon(Icons.gavel_rounded, size: 18),
+                        label: const Text('Place Bid'),
                       )
-                    : OutlinedButton.icon(
-                        onPressed: null,
-                        icon: const Icon(Icons.block_rounded, size: 18),
-                        label: Text(painting.isSold ? 'Sold' : 'Not listed'),
-                      ),
+                    : painting.isAvailable
+                        ? ElevatedButton.icon(
+                            onPressed: () => _openBuyIntent(context),
+                            icon: const Icon(Icons.shopping_bag_rounded, size: 18),
+                            label: Text('Buy for ${painting.displayPrice}'),
+                          )
+                        : OutlinedButton.icon(
+                            onPressed: null,
+                            icon: const Icon(Icons.block_rounded, size: 18),
+                            label: Text(painting.isSold ? 'Sold' : 'Not listed'),
+                          ),
               ),
             ],
           ),
@@ -621,6 +632,108 @@ class _ActionZone extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _openAuction(BuildContext context) async {
+    try {
+      final row = await Supabase.instance.client
+          .from('auctions')
+          .select('id, status, end_time')
+          .eq('painting_id', painting.id)
+          .inFilter('status', ['active', 'live', 'upcoming', 'pending'])
+          .order('end_time', ascending: true)
+          .limit(1)
+          .maybeSingle();
+      final auctionId = row?['id']?.toString();
+      if (auctionId == null || auctionId.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No live auction found for this artwork.')),
+        );
+        return;
+      }
+      if (!context.mounted) return;
+      context.push('/auction/$auctionId');
+    } catch (_) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to open auction right now.')),
+      );
+    }
+  }
+
+  Future<void> _openBuyIntent(BuildContext context) async {
+    final auth = context.read<AuthProvider>();
+    if (!auth.isAuthenticated) {
+      context.push('/sign-in');
+      return;
+    }
+    final confirm = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Confirm Purchase Intent',
+              style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '${painting.title}\n${painting.displayPrice}',
+              style: const TextStyle(color: AppColors.textSecondary, height: 1.5),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Payment integration is in beta. We will save your buy intent and notify you when checkout is enabled.',
+              style: TextStyle(color: AppColors.warning, fontSize: 12),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Cancel'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text('Save Intent'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirm != true || !context.mounted) return;
+    try {
+      await Supabase.instance.client.from('purchase_intents').insert({
+        'painting_id': painting.id,
+        'buyer_id': auth.user!.id,
+        'amount': painting.price ?? 0,
+        'currency': painting.currency ?? 'INR',
+        'status': 'pending',
+        'notes': 'Created from artwork detail beta buy flow',
+      });
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Purchase intent saved. Payment integration coming soon.')),
+      );
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Buy intent captured locally. Payment flow is in beta.')),
+      );
+    }
   }
 }
 
@@ -709,6 +822,14 @@ class _ProvenanceCard extends StatelessWidget {
               value: painting.isAvailable
                   ? 'Available'
                   : (painting.isSold ? 'Sold' : 'Not listed')),
+          _LineRow(
+              label: 'Verification',
+              value: painting.isVerifiedArtwork ? 'Verified artwork' : 'Verification pending'),
+          _LineRow(
+              label: 'NFC',
+              value: painting.nfcStatus ?? (painting.hasNfcAttached ? 'attached' : 'not_attached')),
+          if (painting.solanaTxId != null && painting.solanaTxId!.isNotEmpty)
+            _LineRow(label: 'Solana Tx', value: painting.solanaTxId!),
           _LineRow(
               label: 'Certificate',
               value: 'Available via Artyug authenticity center'),

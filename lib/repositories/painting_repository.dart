@@ -33,7 +33,8 @@ class PaintingRepository {
         ...item,
         'display_name': profile?['display_name'],
         'profile_picture_url': profile?['profile_picture_url'],
-        'is_verified': profile?['is_verified'],
+        'artist_is_verified': profile?['is_verified'],
+        'is_verified_artwork': item['is_verified'],
         'artist_type': profile?['artist_type'],
       });
     }).toList();
@@ -74,7 +75,8 @@ class PaintingRepository {
           'created_at': p.createdAt?.toIso8601String(),
           'display_name': p.artistDisplayName,
           'profile_picture_url': p.artistProfilePictureUrl,
-          'is_verified': p.artistIsVerified,
+          'artist_is_verified': p.artistIsVerified,
+          'is_verified_artwork': p.isVerifiedArtwork,
           'artist_type': p.artistType,
           'likes_count': likeMap[p.id] ?? 0,
           'is_liked': likedSet.contains(p.id),
@@ -113,7 +115,8 @@ class PaintingRepository {
       ...data,
       'display_name': profile?['display_name'],
       'profile_picture_url': profile?['profile_picture_url'],
-      'is_verified': profile?['is_verified'],
+      'artist_is_verified': profile?['is_verified'],
+      'is_verified_artwork': data['is_verified'],
     });
   }
 
@@ -164,7 +167,8 @@ class PaintingRepository {
         ...item,
         'display_name': profile?['display_name'],
         'profile_picture_url': profile?['profile_picture_url'],
-        'is_verified': profile?['is_verified'],
+        'artist_is_verified': profile?['is_verified'],
+        'is_verified_artwork': item['is_verified'],
       });
     }).toList();
   }
@@ -205,7 +209,8 @@ class PaintingRepository {
       'created_at': painting.createdAt?.toIso8601String(),
       'display_name': painting.artistDisplayName,
       'profile_picture_url': painting.artistProfilePictureUrl,
-      'is_verified': painting.artistIsVerified,
+      'artist_is_verified': painting.artistIsVerified,
+      'is_verified_artwork': painting.isVerifiedArtwork,
       'artist_type': painting.artistType,
       'likes_count': likesCount,
       'is_liked': isLiked,

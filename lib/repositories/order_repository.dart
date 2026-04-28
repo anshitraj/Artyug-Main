@@ -47,7 +47,8 @@ class OrderRepository {
       ...data,
       'display_name': data['profiles']?['display_name'],
       'profile_picture_url': data['profiles']?['profile_picture_url'],
-      'is_verified': data['profiles']?['is_verified'],
+      'artist_is_verified': data['profiles']?['is_verified'],
+      'is_verified_artwork': data['is_verified'],
     });
   }
 

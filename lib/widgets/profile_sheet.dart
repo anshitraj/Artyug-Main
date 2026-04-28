@@ -50,8 +50,8 @@ class _ProfileSheetState extends State<_ProfileSheet> {
           .from('profiles')
           .select(
               'id, display_name, username, bio, profile_picture_url, '
-              'artist_type, is_verified, is_premium, followers_count, '
-              'following_count, artworks_count')
+              'artist_type, is_verified, plan, followers_count, '
+              'following_count')
           .eq('id', uid)
           .single();
       if (!mounted) return;
@@ -79,9 +79,8 @@ class _ProfileSheetState extends State<_ProfileSheet> {
         user?.userMetadata?['avatar_url'] as String?;
     final artistType = _profile?['artist_type'] as String?;
     final isVerified = _profile?['is_verified'] as bool? ?? false;
-    final isPremium = _profile?['is_premium'] as bool? ?? false;
+    final isPremium = (_profile?['plan'] as String?) == 'premium';
     final followersCount = (_profile?['followers_count'] as num?)?.toInt() ?? 0;
-    final artworksCount = (_profile?['artworks_count'] as num?)?.toInt() ?? 0;
 
     return DraggableScrollableSheet(
       initialChildSize: 0.72,
@@ -243,9 +242,9 @@ class _ProfileSheetState extends State<_ProfileSheet> {
                           // ── Stats row ───────────────────────────────────────
                           Row(
                             children: [
-                              _StatChip(label: 'Artworks', value: '$artworksCount'),
-                              const SizedBox(width: 10),
                               _StatChip(label: 'Followers', value: _compact(followersCount)),
+                              const SizedBox(width: 10),
+                              _StatChip(label: 'Following', value: _compact((_profile?['following_count'] as num?)?.toInt() ?? 0)),
                             ],
                           ),
 
@@ -268,6 +267,14 @@ class _ProfileSheetState extends State<_ProfileSheet> {
                                 onTap: () {
                                   Navigator.pop(context);
                                   context.go('/main?tab=3&dashboard=creator');
+                                },
+                              ),
+                              _ActionItem(
+                                icon: Icons.storefront_rounded,
+                                label: 'My Galleries',
+                                onTap: () {
+                                  Navigator.pop(context);
+                                  context.push('/my-galleries');
                                 },
                               ),
                               _ActionItem(

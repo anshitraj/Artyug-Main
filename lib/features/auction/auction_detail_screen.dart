@@ -167,6 +167,7 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen>
                   auction.currentHighestBidderAvatarUrl,
               'start_time': auction.startTime.toIso8601String(),
               'end_time': auction.endTime.toIso8601String(),
+              'bid_increment': auction.bidIncrement,
               'status': auction.status,
               'total_bids': auction.totalBids,
             },
@@ -196,6 +197,10 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen>
     }
     final auction = _auction;
     if (auction == null) return;
+    if (!auction.isActive) {
+      _showSnack('This auction is not accepting bids right now.');
+      return;
+    }
     if (amt < auction.minimumNextBid) {
       _showSnack(
           'Minimum bid is ${_currency.format(auction.minimumNextBid)}');
@@ -205,6 +210,11 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen>
     final auth = context.read<AuthProvider>();
     if (!auth.isAuthenticated) {
       context.push('/sign-in');
+      return;
+    }
+    if (auth.user?.id == auction.sellerId ||
+        auth.user?.id == auction.painting?.artistId) {
+      _showSnack('You cannot bid on your own artwork.');
       return;
     }
 

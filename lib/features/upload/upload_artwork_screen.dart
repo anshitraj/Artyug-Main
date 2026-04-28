@@ -1,12 +1,9 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme/app_colors.dart';
-import '../../providers/auth_provider.dart';
 import 'dart:typed_data';
-import 'package:provider/provider.dart';
 
 class UploadArtworkScreen extends StatefulWidget {
   final String? shopId;
@@ -22,6 +19,8 @@ class _UploadArtworkScreenState extends State<UploadArtworkScreen>
   final _titleCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
   final _priceCtrl = TextEditingController();
+  final _startingBidCtrl = TextEditingController();
+  final _reservePriceCtrl = TextEditingController();
   final _mediumCtrl = TextEditingController();
   final _dimCtrl = TextEditingController();
   final _tagsCtrl = TextEditingController();
@@ -29,6 +28,10 @@ class _UploadArtworkScreenState extends State<UploadArtworkScreen>
   List<XFile> _images = [];
   String _category = 'Painting';
   bool _forSale = true;
+  String _listingType = 'fixed_price';
+  DateTime? _auctionEndAt;
+  List<Map<String, dynamic>> _shopCollections = [];
+  String? _selectedCollectionId;
   bool _uploading = false;
   int _step = 0;
 
@@ -45,14 +48,34 @@ class _UploadArtworkScreenState extends State<UploadArtworkScreen>
     _slideAnim = Tween<Offset>(begin: const Offset(1,0), end: Offset.zero)
         .animate(CurvedAnimation(parent: _slideCtrl, curve: Curves.easeOutCubic));
     _slideCtrl.forward();
+    _loadCollectionsForShop();
   }
 
   @override
   void dispose() {
     _slideCtrl.dispose();
     _titleCtrl.dispose(); _descCtrl.dispose(); _priceCtrl.dispose();
+    _startingBidCtrl.dispose(); _reservePriceCtrl.dispose();
     _mediumCtrl.dispose(); _dimCtrl.dispose(); _tagsCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadCollectionsForShop() async {
+    if (widget.shopId == null) return;
+    try {
+      final rows = await Supabase.instance.client
+          .from('collections')
+          .select('id, name')
+          .eq('shop_id', widget.shopId!)
+          .order('created_at', ascending: false)
+          .limit(50);
+      if (!mounted) return;
+      setState(() {
+        _shopCollections = List<Map<String, dynamic>>.from(rows as List);
+      });
+    } catch (_) {
+      // Optional enhancement only; keep upload flow stable if table is missing.
+    }
   }
 
   void _goTo(int next) {
@@ -69,6 +92,17 @@ class _UploadArtworkScreenState extends State<UploadArtworkScreen>
     switch (_step) {
       case 0: return _images.isNotEmpty;
       case 1: return _titleCtrl.text.trim().isNotEmpty;
+      case 4:
+        if (!_forSale) return true;
+        if (_listingType == 'auction') {
+          final start = double.tryParse(_startingBidCtrl.text.trim());
+          return start != null && start > 0 && _auctionEndAt != null;
+        }
+        if (_listingType == 'fixed_price') {
+          final price = double.tryParse(_priceCtrl.text.trim());
+          return price != null && price > 0;
+        }
+        return true;
       default: return true;
     }
   }
@@ -76,6 +110,32 @@ class _UploadArtworkScreenState extends State<UploadArtworkScreen>
   Future<void> _pickImages() async {
     final picked = await _picker.pickMultiImage(imageQuality: 85);
     if (picked.isNotEmpty) setState(() => _images = picked.take(8).toList());
+  }
+
+  Future<void> _pickAuctionEndDate() async {
+    final now = DateTime.now();
+    final initial = _auctionEndAt ?? now.add(const Duration(days: 2));
+    final pickedDate = await showDatePicker(
+      context: context,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 90)),
+      initialDate: initial,
+    );
+    if (pickedDate == null || !mounted) return;
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initial),
+    );
+    if (pickedTime == null || !mounted) return;
+    setState(() {
+      _auctionEndAt = DateTime(
+        pickedDate.year,
+        pickedDate.month,
+        pickedDate.day,
+        pickedTime.hour,
+        pickedTime.minute,
+      );
+    });
   }
 
   Future<void> _publish() async {
@@ -96,7 +156,13 @@ class _UploadArtworkScreenState extends State<UploadArtworkScreen>
         if (i == 0) imageUrl = url; else extras.add(url);
       }
       final tags = _tagsCtrl.text.split(',').map((t) => t.trim()).where((t) => t.isNotEmpty).toList();
-      await db.from('paintings').insert({
+      final listingType = _forSale ? _listingType : 'open_offer';
+      final fixedPrice = double.tryParse(_priceCtrl.text.trim());
+      final startingBid = double.tryParse(_startingBidCtrl.text.trim());
+      final reserve = double.tryParse(_reservePriceCtrl.text.trim());
+      final basePrice = listingType == 'auction' ? startingBid : fixedPrice;
+
+      final paintingInsert = <String, dynamic>{
         'artist_id': user.id,
         'title': _titleCtrl.text.trim(),
         'description': _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
@@ -105,13 +171,50 @@ class _UploadArtworkScreenState extends State<UploadArtworkScreen>
         'category': _category,
         'medium': _mediumCtrl.text.trim().isEmpty ? null : _mediumCtrl.text.trim(),
         'dimensions': _dimCtrl.text.trim().isEmpty ? null : _dimCtrl.text.trim(),
-        'price': _forSale && _priceCtrl.text.isNotEmpty ? double.tryParse(_priceCtrl.text) : null,
+        'price': _forSale ? basePrice : null,
         'is_for_sale': _forSale,
-        'status': 'available',
+        'listing_type': listingType,
+        'status': _forSale ? 'available' : 'draft',
+        'currency': 'INR',
         'style_tags': tags,
         if (widget.shopId != null) 'shop_id': widget.shopId,
+        if (_selectedCollectionId != null) 'collection_id': _selectedCollectionId,
+        'nfc_status': 'not_attached',
         'created_at': DateTime.now().toIso8601String(),
-      });
+      };
+
+      String? paintingId;
+      try {
+        final inserted = await db.from('paintings').insert(paintingInsert).select('id').single();
+        paintingId = inserted['id']?.toString();
+      } catch (_) {
+        await db.from('paintings').insert({
+          ...paintingInsert,
+          'status': _forSale ? 'available' : 'draft',
+          'listing_type': null,
+          'currency': null,
+          'nfc_status': null,
+          'collection_id': null,
+        });
+      }
+
+      if (listingType == 'auction' && paintingId != null && startingBid != null && _auctionEndAt != null) {
+        try {
+          await db.from('auctions').insert({
+            'painting_id': paintingId,
+            'seller_id': user.id,
+            'starting_price': startingBid,
+            'reserve_price': reserve,
+            'current_highest_bid': null,
+            'start_time': DateTime.now().toIso8601String(),
+            'end_time': _auctionEndAt!.toIso8601String(),
+            'status': 'active',
+            'bid_increment': 500,
+          });
+        } catch (_) {
+          // Auction table may not exist on older DBs; artwork listing should still succeed.
+        }
+      }
       if (mounted) { context.pop(); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Artwork published!'))); }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
@@ -252,14 +355,7 @@ class _UploadArtworkScreenState extends State<UploadArtworkScreen>
                 return Stack(children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(16),
-                    child: Image.network(_images[i].path, fit: BoxFit.cover, width: double.infinity, height: double.infinity,
-                      errorBuilder: (_, __, ___) => FutureBuilder<List<int>>(
-                        future: _images[i].readAsBytes().then((b) => b.toList()),
-                        builder: (_, snap) => snap.hasData
-                          ? Image.memory(Uint8List.fromList(snap.data!), fit: BoxFit.cover, width: double.infinity, height: double.infinity)
-                          : const Center(child: CircularProgressIndicator()),
-                      ),
-                    ),
+                    child: _pickedImage(_images[i], fit: BoxFit.cover),
                   ),
                   if (i == 0) Positioned(top: 8, left: 8, child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -373,51 +469,155 @@ class _UploadArtworkScreenState extends State<UploadArtworkScreen>
 
   Widget _stepPrice() => Padding(
     padding: const EdgeInsets.all(24),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Set your price', style: TextStyle(color: AppColors.textSecondary, fontSize: 15)),
-        const SizedBox(height: 24),
-        GestureDetector(
-          onTap: () => setState(() => _forSale = !_forSale),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: _forSale ? AppColors.primary.withOpacity(0.1) : AppColors.surface,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: _forSale ? AppColors.primary : AppColors.border, width: 1.5),
-            ),
-            child: Row(children: [
-              Icon(_forSale ? Icons.check_circle : Icons.radio_button_unchecked, color: _forSale ? AppColors.primary : AppColors.textSecondary),
-              const SizedBox(width: 12),
-              const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Make this available to buy', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700, fontSize: 16)),
-                Text('Collectors can purchase this artwork', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-              ])),
-            ]),
-          ),
-        ),
-        if (_forSale) ...[
+    child: SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Set your listing', style: TextStyle(color: AppColors.textSecondary, fontSize: 15)),
           const SizedBox(height: 24),
-          const Text('PRICE (₹)', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.5)),
-          const SizedBox(height: 12),
-          Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
-            const Text('₹', style: TextStyle(color: AppColors.primary, fontSize: 36, fontWeight: FontWeight.w800)),
-            const SizedBox(width: 8),
-            Expanded(child: TextField(
-              controller: _priceCtrl,
-              keyboardType: TextInputType.number,
-              autofocus: true,
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 36, fontWeight: FontWeight.w800),
-              decoration: const InputDecoration(hintText: '0', hintStyle: TextStyle(color: AppColors.border, fontSize: 36, fontWeight: FontWeight.w800), border: InputBorder.none),
-            )),
-          ]),
+          GestureDetector(
+            onTap: () => setState(() => _forSale = !_forSale),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: _forSale ? AppColors.primary.withOpacity(0.1) : AppColors.surface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: _forSale ? AppColors.primary : AppColors.border, width: 1.5),
+              ),
+              child: Row(children: [
+                Icon(_forSale ? Icons.check_circle : Icons.radio_button_unchecked, color: _forSale ? AppColors.primary : AppColors.textSecondary),
+                const SizedBox(width: 12),
+                const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('List this artwork in marketplace', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700, fontSize: 16)),
+                  Text('Choose fixed price, auction, or open offers', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                ])),
+              ]),
+            ),
+          ),
+          if (_forSale) ...[
+            const SizedBox(height: 20),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _listingPill('fixed_price', 'Fixed Price'),
+                _listingPill('auction', 'Auction'),
+                _listingPill('open_offer', 'Open Offer'),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (_listingType == 'fixed_price') ...[
+              const Text('PRICE (INR)', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.5)),
+              const SizedBox(height: 8),
+              Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
+                const Text('INR', style: TextStyle(color: AppColors.primary, fontSize: 15, fontWeight: FontWeight.w800)),
+                const SizedBox(width: 8),
+                Expanded(child: TextField(
+                  controller: _priceCtrl,
+                  keyboardType: TextInputType.number,
+                  autofocus: true,
+                  onChanged: (_) => setState(() {}),
+                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 36, fontWeight: FontWeight.w800),
+                  decoration: const InputDecoration(hintText: '0', hintStyle: TextStyle(color: AppColors.border, fontSize: 36, fontWeight: FontWeight.w800), border: InputBorder.none),
+                )),
+              ]),
+            ] else if (_listingType == 'auction') ...[
+              _inputField('Starting bid (INR)', _startingBidCtrl, hint: 'e.g. 5000'),
+              const SizedBox(height: 12),
+              _inputField('Reserve price (optional)', _reservePriceCtrl, hint: 'e.g. 12000'),
+              const SizedBox(height: 14),
+              InkWell(
+                onTap: _pickAuctionEndDate,
+                borderRadius: BorderRadius.circular(14),
+                child: Ink(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.timer_outlined, color: AppColors.textSecondary, size: 16),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _auctionEndAt == null ? 'Pick auction end date & time' : 'Ends: ${_auctionEndAt!.toLocal()}',
+                          style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ] else ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: const Text(
+                  'Collectors can send purchase offers. You can accept manually.',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                ),
+              ),
+            ],
+            if (_shopCollections.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              const Text('COLLECTION', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.5)),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                value: _selectedCollectionId,
+                dropdownColor: AppColors.surfaceVariant,
+                style: const TextStyle(color: AppColors.textPrimary),
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: AppColors.surface,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                ),
+                items: [
+                  const DropdownMenuItem<String>(value: '', child: Text('No collection')),
+                  ..._shopCollections.map((c) => DropdownMenuItem<String>(
+                    value: c['id']?.toString() ?? '',
+                    child: Text(c['name']?.toString() ?? 'Collection'),
+                  )),
+                ],
+                onChanged: (value) => setState(() => _selectedCollectionId = (value == null || value.isEmpty) ? null : value),
+              ),
+            ],
+          ],
         ],
-      ],
+      ),
     ),
   );
 
+  Widget _listingPill(String type, String label) {
+    final selected = _listingType == type;
+    return InkWell(
+      onTap: () => setState(() => _listingType = type),
+      borderRadius: BorderRadius.circular(999),
+      child: Ink(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primary.withOpacity(0.14) : AppColors.surface,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: selected ? AppColors.primary : AppColors.border),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? AppColors.primary : AppColors.textSecondary,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
   Widget _stepReview() => SingleChildScrollView(
     padding: const EdgeInsets.all(24),
     child: Column(
@@ -427,12 +627,7 @@ class _UploadArtworkScreenState extends State<UploadArtworkScreen>
         const SizedBox(height: 24),
         if (_images.isNotEmpty) ClipRRect(
           borderRadius: BorderRadius.circular(20),
-          child: AspectRatio(aspectRatio: 4/3, child: Image.network(_images[0].path, fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => FutureBuilder<List<int>>(
-              future: _images[0].readAsBytes().then((b) => b.toList()),
-              builder: (_, snap) => snap.hasData ? Image.memory(Uint8List.fromList(snap.data!), fit: BoxFit.cover) : Container(color: AppColors.surface),
-            ),
-          )),
+          child: AspectRatio(aspectRatio: 4/3, child: _pickedImage(_images[0], fit: BoxFit.cover)),
         ),
         const SizedBox(height: 20),
         Text(_titleCtrl.text, style: const TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.w800)),
@@ -443,8 +638,18 @@ class _UploadArtworkScreenState extends State<UploadArtworkScreen>
         _reviewRow('Medium', _mediumCtrl.text.isEmpty ? '—' : _mediumCtrl.text),
         _reviewRow('Dimensions', _dimCtrl.text.isEmpty ? '—' : _dimCtrl.text),
         _reviewRow('Images', '${_images.length} photo${_images.length == 1 ? "" : "s"}'),
-        _reviewRow('Price', _forSale && _priceCtrl.text.isNotEmpty ? '₹${_priceCtrl.text}' : 'Not for sale'),
-        if (widget.shopName != null) _reviewRow('Gallery', widget.shopName!),
+        _reviewRow('Listing', _forSale ? _listingType.replaceAll('_', ' ') : 'Not for sale'),
+        _reviewRow(
+          'Price',
+          !_forSale
+              ? 'Not for sale'
+              : _listingType == 'auction'
+                  ? (_startingBidCtrl.text.isEmpty ? 'Auction (no start bid)' : 'Starts at INR ${_startingBidCtrl.text}')
+                  : _listingType == 'fixed_price'
+                      ? (_priceCtrl.text.isEmpty ? 'No price set' : 'INR ${_priceCtrl.text}')
+                      : 'Open offer',
+        ),
+    if (widget.shopName != null) _reviewRow('Studio', widget.shopName!),
       ],
     ),
   );
@@ -476,6 +681,18 @@ class _UploadArtworkScreenState extends State<UploadArtworkScreen>
       ),
     ],
   );
+
+  Widget _pickedImage(XFile file, {BoxFit fit = BoxFit.cover}) {
+    return FutureBuilder<Uint8List>(
+      future: file.readAsBytes(),
+      builder: (_, snap) {
+        if (!snap.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        return Image.memory(snap.data!, fit: fit, width: double.infinity, height: double.infinity);
+      },
+    );
+  }
 
   Widget _buildFooter() => Padding(
     padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
@@ -513,6 +730,7 @@ class _UploadArtworkScreenState extends State<UploadArtworkScreen>
     ),
   );
 }
+
 
 
 

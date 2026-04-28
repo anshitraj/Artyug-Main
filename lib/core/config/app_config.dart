@@ -9,6 +9,40 @@ class AppConfig {
   static String get supabaseUrl => dotenv.env['SUPABASE_URL'] ?? '';
   static String get supabaseAnonKey => dotenv.env['SUPABASE_ANON_KEY'] ?? '';
 
+  static const String _placeholderSupabaseUrl =
+      'https://your-project.supabase.co';
+  static const String _placeholderSupabaseAnonKey = 'your-anon-key-here';
+
+  static bool get hasValidSupabaseConfig => supabaseConfigError == null;
+
+  static String? get supabaseConfigError {
+    final issues = <String>[];
+    final url = supabaseUrl.trim();
+    final anonKey = supabaseAnonKey.trim();
+    final parsedUrl = Uri.tryParse(url);
+
+    if (url.isEmpty) {
+      issues.add('Missing SUPABASE_URL in .env');
+    } else if (url == _placeholderSupabaseUrl ||
+        url.contains('your-project.supabase.co')) {
+      issues.add('SUPABASE_URL is still using the placeholder value');
+    } else if (parsedUrl == null ||
+        !parsedUrl.hasScheme ||
+        parsedUrl.host.trim().isEmpty) {
+      issues.add('SUPABASE_URL is not a valid absolute URL');
+    }
+
+    if (anonKey.isEmpty) {
+      issues.add('Missing SUPABASE_ANON_KEY in .env');
+    } else if (anonKey == _placeholderSupabaseAnonKey ||
+        anonKey.contains('your-anon-key-here')) {
+      issues.add('SUPABASE_ANON_KEY is still using the placeholder value');
+    }
+
+    if (issues.isEmpty) return null;
+    return issues.join('\n');
+  }
+
   /// Optional. If set, used as Supabase OAuth `redirect_to` (web builds behind proxies, custom domains).
   /// Otherwise web uses [Uri.base.origin] and mobile uses `artyug://login-callback`.
   static String? get oauthRedirectUrl => dotenv.env['OAUTH_REDIRECT_URL'];

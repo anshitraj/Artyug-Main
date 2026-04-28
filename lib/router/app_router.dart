@@ -50,10 +50,13 @@ import '../screens/legal/terms_acceptance_screen.dart';
 
 // ── Shop & Auction ───────────────────────────────────────────────────────────
 import '../features/shop/shop_screen.dart';
+import '../features/shop/shop_detail_screen.dart';
+import '../features/shop/collection_detail_screen.dart';
 import '../features/auction/auction_list_screen.dart';
 import '../features/auction/auction_detail_screen.dart';
 import '../features/auction/auction_model.dart';
 import '../features/gallery/create_gallery_screen.dart';
+import '../features/gallery/my_galleries_screen.dart';
 
 class AppRouter {
   /// [auth] must be the same [AuthProvider] instance registered in [Provider];
@@ -221,6 +224,9 @@ class AppRouter {
         GoRoute(
             path: '/create-shop', // backward-compat alias
             redirect: (_, __) => '/create-gallery'),
+        GoRoute(
+            path: '/my-galleries',
+            builder: (context, state) => const MyGalleriesScreen()),
 
         // ── Artworks & Checkout ───────────────────────────────────────────────
         GoRoute(
@@ -369,6 +375,21 @@ class AppRouter {
         GoRoute(
             path: '/shop',
             builder: (context, state) => const ShopScreen()),
+        GoRoute(
+            path: '/shop/:shopSlug',
+            builder: (context, state) {
+              return ShopDetailScreen(
+                shopSlug: state.pathParameters['shopSlug']!,
+              );
+            }),
+        GoRoute(
+            path: '/shop/:shopSlug/collection/:collectionSlug',
+            builder: (context, state) {
+              return CollectionDetailScreen(
+                shopSlug: state.pathParameters['shopSlug']!,
+                collectionSlug: state.pathParameters['collectionSlug']!,
+              );
+            }),
         GoRoute(
             path: '/auctions',
             builder: (context, state) => const AuctionListScreen()),

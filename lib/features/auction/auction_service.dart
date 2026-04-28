@@ -15,24 +15,41 @@ class AuctionService {
     int limit = 20,
     int offset = 0,
   }) async {
-    final data = await _client
+    // Step 1: fetch auctions
+    final auctionsData = await _client
         .from('auctions')
-        .select('''
-          *,
-          paintings (
-            id, title, image_url, price, artist_id,
-            profiles:artist_id ( display_name, profile_picture_url, is_verified )
-          ),
-          bids (
-            id, auction_id, bidder_id, amount, status, created_at,
-            profiles:bidder_id ( display_name, profile_picture_url )
-          )
-        ''')
+        .select('*, bids(id, auction_id, bidder_id, amount, status, created_at, profiles!bids_bidder_id_profiles_fkey(display_name, profile_picture_url))')
         .eq('status', 'active')
         .order('end_time', ascending: true)
         .range(offset, offset + limit - 1);
 
-    return _parseAuctions(data as List<dynamic>);
+    final auctions = auctionsData as List<dynamic>;
+    if (auctions.isEmpty) return [];
+
+    // Step 2: fetch paintings for those auction painting_ids
+    final paintingIds = auctions
+        .map((a) => a['painting_id'] as String?)
+        .whereType<String>()
+        .toSet()
+        .toList();
+
+    final paintingsData = paintingIds.isEmpty ? [] : await _client
+        .from('paintings')
+        .select('id, title, image_url, price, artist_id, profiles:artist_id(display_name, profile_picture_url, is_verified)')
+        .inFilter('id', paintingIds);
+
+    final paintingMap = {
+      for (final p in (paintingsData as List<dynamic>))
+        (p as Map<String, dynamic>)['id'] as String: p
+    };
+
+    // Merge painting into each auction row
+    for (final a in auctions) {
+      final pid = a['painting_id'] as String?;
+      if (pid != null) (a as Map<String, dynamic>)['paintings'] = paintingMap[pid];
+    }
+
+    return _parseAuctions(auctions);
   }
 
   /// Fetch a single auction by ID.
@@ -48,7 +65,7 @@ class AuctionService {
           ),
           bids (
             id, auction_id, bidder_id, amount, status, created_at,
-            profiles:bidder_id ( display_name, profile_picture_url )
+            profiles!bids_bidder_id_profiles_fkey ( display_name, profile_picture_url )
           )
         ''')
         .eq('id', auctionId)

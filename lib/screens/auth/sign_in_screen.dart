@@ -103,6 +103,30 @@ class _SignInScreenState extends State<SignInScreen>
 
   @override
   Widget build(BuildContext context) {
+    // ── While auth is resolving, show a branded splash instead of the
+    //    login form.  This prevents the ~200ms flash on cold start.
+    final auth = context.watch<AuthProvider>();
+    if (auth.loading) {
+      return const Scaffold(
+        backgroundColor: Color(0xFF07080C),
+        body: Center(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text('ARTYUG',
+                style: TextStyle(
+                    color: Color(0xFFFF5A1F),
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 2)),
+            SizedBox(height: 24),
+            SizedBox(
+              width: 20, height: 20,
+              child: CircularProgressIndicator(
+                  color: Color(0xFFFF5A1F), strokeWidth: 2)),
+          ]),
+        ),
+      );
+    }
+
     return Scaffold(
       body: FadeTransition(
         opacity: _fadeAnim,
@@ -341,26 +365,33 @@ class _SignInScreenState extends State<SignInScreen>
         fontSize: 20,
         letterSpacing: 0.4,
       ),
+      cursorColor: _accentSoft,
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: const TextStyle(
           color: Color(0xFF535A69),
-          fontSize: 22,
+          fontSize: 18,
           letterSpacing: 0.4,
         ),
         suffixIcon: suffix,
-        contentPadding: const EdgeInsets.only(bottom: 8, top: 2),
-        enabledBorder: const UnderlineInputBorder(
-          borderSide: BorderSide(color: _lineColor),
+        filled: true,
+        fillColor: const Color(0xFF181C24), // explicit dark fill — beats autofill override
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: _lineColor),
         ),
-        focusedBorder: const UnderlineInputBorder(
-          borderSide: BorderSide(color: _accentSoft),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: _accentSoft, width: 1.5),
         ),
-        errorBorder: const UnderlineInputBorder(
-          borderSide: BorderSide(color: Colors.redAccent),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
         ),
-        focusedErrorBorder: const UnderlineInputBorder(
-          borderSide: BorderSide(color: Colors.redAccent),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
         ),
       ),
       validator: validator,
