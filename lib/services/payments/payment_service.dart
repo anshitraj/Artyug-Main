@@ -1,24 +1,25 @@
 library artyug.payment_service;
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/services.dart';
+import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/config/app_config.dart';
 
-/// Payment Service — gateway abstraction for Razorpay, Dodo Payments, Stripe Checkout.
+/// Payment Service — Razorpay (live), Dodo & Stripe (coming soon).
 ///
-/// **Secrets:** Razorpay `KEY_ID` may live in the client; order creation uses the
-/// `create-razorpay-order` Edge Function. Dodo and Stripe secret keys should be set as
-/// Supabase Edge Function secrets (`create-dodo-checkout`, `create-stripe-checkout`).
+/// **Native flow (Android/iOS):**
+///   1. Call [initiateRazorpayPayment] → creates order via `create-razorpay-order` Edge Function.
+///   2. Opens native Razorpay checkout sheet.
+///   3. Resolve/reject via [onPaymentSuccess] / [onPaymentError] callbacks.
 ///
-/// Deploy the functions under `supabase/functions/` and set:
-///   supabase secrets set DODO_PAYMENTS_API_KEY=...
-///   supabase secrets set STRIPE_SECRET_KEY=sk_test_... or sk_live_...
-/// Optional: DODO_PAYMENTS_DEFAULT_PRODUCT_ID, DODO_PAYMENTS_MODE=test_mode|live_mode
+/// **Web/Desktop:**
+///   Falls back to opening the Razorpay hosted checkout URL in a browser tab.
 
 enum PaymentGateway { razorpay, dodo, stripe, demo }
 
@@ -29,6 +30,7 @@ class PaymentResult {
   final bool success;
   final String? orderId;
   final String? razorpayOrderId;
+  final String? razorpayPaymentId;
   final String? errorMessage;
   final PaymentGateway gateway;
   final double amount;
@@ -39,6 +41,7 @@ class PaymentResult {
     required this.success,
     this.orderId,
     this.razorpayOrderId,
+    this.razorpayPaymentId,
     this.errorMessage,
     required this.gateway,
     required this.amount,
@@ -68,18 +71,15 @@ class PaymentService {
     return 'https://artyug.app/orders';
   }
 
-  /// In-app **Live** mode: which hosted checkouts to offer (from .env / flags).
+  /// Only Razorpay is currently live. Dodo & Stripe are coming soon.
   static List<CheckoutPaymentMethod> availableCheckoutMethods() {
     final out = <CheckoutPaymentMethod>[];
-    if (AppConfig.razorpayKeyId != null && AppConfig.razorpayKeyId!.trim().isNotEmpty) {
+    if (AppConfig.razorpayKeyId != null &&
+        AppConfig.razorpayKeyId!.trim().isNotEmpty) {
       out.add(CheckoutPaymentMethod.razorpay);
     }
-    if (AppConfig.dodoCheckoutEnabled) {
-      out.add(CheckoutPaymentMethod.dodo);
-    }
-    if (AppConfig.stripeCheckoutEnabled) {
-      out.add(CheckoutPaymentMethod.stripe);
-    }
+    // Dodo & Stripe are visible in UI as "Coming Soon" — not added here so
+    // they cannot be selected as an active method.
     return out;
   }
 
@@ -94,7 +94,6 @@ class PaymentService {
     }
   }
 
-  /// [runtimeLiveMode] comes from [AppModeProvider] — must match the in-app Demo/Live toggle.
   static PaymentGateway resolveGateway({
     required bool runtimeLiveMode,
     required String currency,
@@ -109,8 +108,6 @@ class PaymentService {
         AppConfig.razorpayKeyId!.trim().isNotEmpty) {
       return PaymentGateway.razorpay;
     }
-    if (AppConfig.dodoCheckoutEnabled) return PaymentGateway.dodo;
-    if (AppConfig.stripeCheckoutEnabled) return PaymentGateway.stripe;
     return PaymentGateway.demo;
   }
 
@@ -137,9 +134,104 @@ class PaymentService {
     }
   }
 
+  // ── Native Razorpay (Android / iOS) ──────────────────────────────────────
+
+  /// Opens the native Razorpay payment sheet.
+  ///
+  /// Returns a [Completer] that resolves when the user completes or dismisses
+  /// the payment. Callers should await [completer.future].
+  ///
+  /// Usage:
+  /// ```dart
+  /// final result = await PaymentService.openNativeRazorpay(
+  ///   orderId: 'order_XXXXX',
+  ///   amountPaise: 50000,   // ₹500
+  ///   artworkTitle: 'My Painting',
+  ///   contactEmail: user.email,
+  ///   contactPhone: '+919876543210',
+  /// );
+  /// ```
+  static Future<PaymentResult> openNativeRazorpay({
+    required String orderId,
+    required int amountPaise,
+    required String artworkTitle,
+    String? contactEmail,
+    String? contactPhone,
+  }) {
+    final completer = Completer<PaymentResult>();
+    final razorpay = Razorpay();
+
+    void cleanUp() {
+      razorpay.clear();
+    }
+
+    razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, (PaymentSuccessResponse resp) {
+      cleanUp();
+      completer.complete(PaymentResult(
+        success: true,
+        razorpayOrderId: orderId,
+        razorpayPaymentId: resp.paymentId,
+        gateway: PaymentGateway.razorpay,
+        amount: amountPaise / 100.0,
+        currency: 'INR',
+      ));
+    });
+
+    razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, (PaymentFailureResponse resp) {
+      cleanUp();
+      completer.complete(PaymentResult(
+        success: false,
+        razorpayOrderId: orderId,
+        errorMessage: resp.message ?? 'Payment failed or cancelled',
+        gateway: PaymentGateway.razorpay,
+        amount: amountPaise / 100.0,
+        currency: 'INR',
+      ));
+    });
+
+    razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, (ExternalWalletResponse resp) {
+      // External wallet selected — treat as pending (user will complete outside)
+      cleanUp();
+      completer.complete(PaymentResult(
+        success: true,
+        razorpayOrderId: orderId,
+        errorMessage: 'External wallet: ${resp.walletName}',
+        gateway: PaymentGateway.razorpay,
+        amount: amountPaise / 100.0,
+        currency: 'INR',
+      ));
+    });
+
+    final options = <String, dynamic>{
+      'key': AppConfig.razorpayKeyId,
+      'order_id': orderId,
+      'amount': amountPaise,
+      'name': 'Artyug',
+      'description': artworkTitle,
+      'currency': 'INR',
+      'prefill': <String, dynamic>{
+        if (contactEmail != null) 'email': contactEmail,
+        if (contactPhone != null) 'contact': contactPhone,
+      },
+      'theme': {'color': '#1C6EF2'},
+      'send_sms_hash': true,
+      'retry': {'enabled': true, 'max_count': 2},
+    };
+
+    razorpay.open(options);
+    return completer.future;
+  }
+
+  /// Full Razorpay flow:
+  ///   1. Call Edge Function to create order.
+  ///   2. On native: open Razorpay sheet and await result.
+  ///      On web/desktop: open hosted URL in browser.
   static Future<PaymentResult?> initiateRazorpayPayment({
     required String artworkId,
     required double amountInr,
+    required String artworkTitle,
+    String? contactEmail,
+    String? contactPhone,
     String? receiptId,
   }) async {
     try {
@@ -147,6 +239,7 @@ class PaymentService {
       final session = client.auth.currentSession;
       if (session == null) return null;
 
+      // Step 1: Create order via Edge Function (uses secret key server-side)
       final response = await client.functions.invoke(
         'create-razorpay-order',
         body: {
@@ -169,32 +262,69 @@ class PaymentService {
           : jsonDecode(response.data.toString()) as Map<String, dynamic>;
 
       final razorpayOrderId = data['order_id'] as String?;
-      final hostedUrl = data['hosted_url'] as String?;
+      final amountPaise = (data['amount'] as num?)?.toInt() ?? (amountInr * 100).round();
+      final keyId = data['key_id'] as String? ?? AppConfig.razorpayKeyId;
 
-      if (razorpayOrderId == null) return null;
-
-      if (kIsWeb && hostedUrl != null) {
-        final uri = Uri.parse(hostedUrl);
-        if (await canLaunchUrl(uri)) {
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-        }
+      if (razorpayOrderId == null) {
+        debugPrint('[PaymentService] No order_id in Edge Function response');
+        return null;
       }
 
-      return PaymentResult(
-        success: true,
-        razorpayOrderId: razorpayOrderId,
-        gateway: PaymentGateway.razorpay,
-        amount: amountInr,
-        currency: 'INR',
-        hostedCheckoutUrl: hostedUrl,
-      );
+      // Step 2: Open checkout
+      if (!kIsWeb) {
+        // Android / iOS — native Razorpay sheet
+        return await openNativeRazorpay(
+          orderId: razorpayOrderId,
+          amountPaise: amountPaise,
+          artworkTitle: artworkTitle,
+          contactEmail: contactEmail,
+          contactPhone: contactPhone,
+        );
+      } else {
+        // Web / Desktop — open hosted Razorpay checkout URL
+        final hostedUrl = data['hosted_url'] as String?;
+        if (hostedUrl != null) {
+          final uri = Uri.parse(hostedUrl);
+          if (await canLaunchUrl(uri)) {
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+          }
+          return PaymentResult(
+            success: true,
+            razorpayOrderId: razorpayOrderId,
+            gateway: PaymentGateway.razorpay,
+            amount: amountInr,
+            currency: 'INR',
+            hostedCheckoutUrl: hostedUrl,
+          );
+        }
+
+        // Fallback: build Razorpay Standard Checkout URL manually
+        final checkoutUri = Uri.https('rzp.io', '/l/${keyId}', {
+          'amount': amountPaise.toString(),
+          'currency': 'INR',
+        });
+        if (await canLaunchUrl(checkoutUri)) {
+          await launchUrl(checkoutUri, mode: LaunchMode.externalApplication);
+        }
+        return PaymentResult(
+          success: true,
+          razorpayOrderId: razorpayOrderId,
+          gateway: PaymentGateway.razorpay,
+          amount: amountInr,
+          currency: 'INR',
+          hostedCheckoutUrl: checkoutUri.toString(),
+        );
+      }
     } catch (e) {
       debugPrint('[PaymentService] initiateRazorpayPayment failed: $e');
       return null;
     }
   }
 
-  /// Dodo Payments hosted checkout via Edge Function `create-dodo-checkout`.
+  // ── Dodo Payments (Coming Soon) ────────────────────────────────────────────
+
+  /// Dodo Payments hosted checkout — not yet live.
+  /// UI shows "Coming Soon" badge.
   static Future<PaymentResult?> initiateDodoCheckout({
     required String artworkId,
     required String artworkTitle,
@@ -214,18 +344,14 @@ class PaymentService {
           'amount_inr': amountInr,
           'return_url': returnUrl ?? defaultPaymentReturnUrl(),
           'billing_address': billingAddress,
-          // Pass the key from .env so Edge Function can use it even without env secrets
           if ((AppConfig.dodoPaymentsApiKey ?? '').isNotEmpty)
             'api_key': AppConfig.dodoPaymentsApiKey,
-          'metadata': {
-            'artwork_id': artworkId,
-            'source': 'artyug_flutter',
-          },
+          'metadata': {'artwork_id': artworkId, 'source': 'artyug_flutter'},
         },
       );
 
       if (response.status != 200) {
-        debugPrint('[PaymentService] create-dodo-checkout error ${response.status}: ${response.data}');
+        debugPrint('[PaymentService] create-dodo-checkout error: ${response.data}');
         return null;
       }
 
@@ -256,7 +382,10 @@ class PaymentService {
     }
   }
 
-  /// Stripe Checkout Session via Edge Function `create-stripe-checkout`.
+  // ── Stripe Checkout (Coming Soon) ──────────────────────────────────────────
+
+  /// Stripe Checkout Session — not yet live.
+  /// UI shows "Coming Soon" badge.
   static Future<PaymentResult?> initiateStripeCheckout({
     required String artworkId,
     required String artworkTitle,
@@ -331,11 +460,11 @@ class PaymentService {
       if (h != null && h.isNotEmpty) return h;
       final u = nested['url'] as String?;
       if (u != null && u.isNotEmpty) return u;
-      final hosts = nested['hosted_url'];
-      if (hosts is String && hosts.isNotEmpty) return hosts;
     }
     return null;
   }
+
+  // ── Demo Payment ───────────────────────────────────────────────────────────
 
   static Future<PaymentResult> demoPayment({
     required String artworkId,
@@ -353,19 +482,20 @@ class PaymentService {
     );
   }
 
-  /// Explains why hosted checkout is blocked when the app is in Live mode.
+  // ── Guards ─────────────────────────────────────────────────────────────────
+
   static String? blockMessageForLiveMode(bool runtimeLiveMode) {
     final reason = AppConfig.livePaymentBlockReasonWhenLive(runtimeLiveMode);
     if (reason == null) return null;
-    return 'Live payments are not configured ($reason). Add keys or enable '
-        'CHECKOUT_ENABLE_DODO / CHECKOUT_ENABLE_STRIPE and deploy Edge Functions.';
+    return 'Live payments are not configured ($reason). Add RAZORPAY_KEY_ID to .env.';
   }
 
-  /// Razorpay-only guard (key id must be present for hosted order).
   static String? get razorpayBlockMessage {
-    if (AppConfig.razorpayKeyId == null || AppConfig.razorpayKeyId!.trim().isEmpty) {
+    if (AppConfig.razorpayKeyId == null ||
+        AppConfig.razorpayKeyId!.trim().isEmpty) {
       return 'RAZORPAY_KEY_ID is not set';
     }
     return null;
   }
 }
+

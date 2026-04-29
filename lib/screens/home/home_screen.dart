@@ -250,33 +250,6 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  Future<void> _showCommentDialog(String postId, String postTitle, bool isDarkMode) async {
-    final user = Provider.of<AuthProvider>(context, listen: false).user;
-    if (user == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please sign in to comment')),
-        );
-      }
-      return;
-    }
-
-    if (!mounted) return;
-
-    await showDialog(
-      context: context,
-      builder: (context) => _CommentDialog(
-        postId: postId,
-        postTitle: postTitle,
-        isDarkMode: isDarkMode,
-        user: user,
-        supabase: _supabase,
-        onCommentAdded: () => _fetchThreads(0, false),
-        formatDate: _formatDate,
-      ),
-    );
-  }
-
   String _formatDate(String dateStr) {
     try {
       final date = DateTime.parse(dateStr);
@@ -761,13 +734,6 @@ class _HomeScreenState extends State<HomeScreen>
                 fontWeight: FontWeight.bold,
               ),
             ),
-            Text(
-              _formatDate(thread['created_at']),
-              style: TextStyle(
-                color: isDarkMode ? Colors.white60 : const Color(0xFF6b7280),
-                fontSize: 12,
-              ),
-            ),
           ],
         ),
       ],
@@ -776,9 +742,18 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildThreadActions(Map<String, dynamic> thread, bool isDarkMode) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      mainAxisAlignment: MainAxisAlignment.end,
       children: [
+        Text(
+          _formatDate(thread['created_at']),
+          style: TextStyle(
+            color: isDarkMode ? Colors.white60 : const Color(0xFF6b7280),
+            fontSize: 12,
+          ),
+        ),
+        const SizedBox(width: 12),
         Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(
               icon: Icon(
@@ -793,20 +768,6 @@ class _HomeScreenState extends State<HomeScreen>
             )
           ],
         ),
-        GestureDetector(
-          onTap: () => _showCommentDialog(thread['id'], thread['title'] ?? 'Post', isDarkMode),
-          child: Row(
-            children: [
-              Icon(Icons.comment_outlined, color: isDarkMode ? Colors.white70 : const Color(0xFF6b7280)),
-              const SizedBox(width: 4),
-              Text(
-                '${thread['comments_count']}',
-                style: TextStyle(color: isDarkMode ? Colors.white70 : const Color(0xFF6b7280)),
-              ),
-            ],
-          ),
-        ),
-        Icon(Icons.share_outlined, color: isDarkMode ? Colors.white70 : const Color(0xFF6b7280)),
       ],
     );
   }

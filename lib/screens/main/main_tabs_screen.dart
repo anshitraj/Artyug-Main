@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -237,7 +237,7 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
               isActive: (item) => _isItemActive(item, currentIndex),
               scrollable: false,
             ),
-            const VerticalDivider(width: 1, color: AppColors.borderStrong),
+            const VerticalDivider(width: 1, thickness: 1),
             Expanded(
               child: Column(
                 children: [
@@ -273,7 +273,7 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
       key: _mobileShellKey,
       backgroundColor: cs.surface,
       drawer: Drawer(
-        backgroundColor: AppColors.sidebar,
+        backgroundColor: AppColors.canvasSoftOf(context),
         surfaceTintColor: Colors.transparent,
         width: 304,
         shape: const RoundedRectangleBorder(
@@ -539,13 +539,13 @@ class _PremiumSidebar extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 4),
-            const Text(
+            Text(
               'Art Marketplace & Studio',
               style: TextStyle(
                 fontFamily: 'Outfit',
                 fontSize: 11,
                 fontWeight: FontWeight.w500,
-                color: AppColors.textTertiary,
+                color: AppColors.textTertiaryOf(context),
                 letterSpacing: 0.1,
               ),
             ),
@@ -578,9 +578,9 @@ class _PremiumSidebar extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: AppColors.surfaceOf(context),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.borderStrong),
+          border: Border.all(color: AppColors.borderStrongOf(context)),
         ),
         child: Row(
           children: [
@@ -602,18 +602,18 @@ class _PremiumSidebar extends StatelessWidget {
                   Text(
                     auth.user?.userMetadata?['full_name'] ??
                         'Artyug Collector',
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
+                    style: TextStyle(
+                      color: AppColors.textPrimaryOf(context),
                       fontWeight: FontWeight.w700,
                       fontSize: 12,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 2),
-                  const Text(
+                  Text(
                     'Account & preferences',
                     style: TextStyle(
-                      color: AppColors.textSecondary,
+                      color: AppColors.textSecondaryOf(context),
                       fontSize: 11,
                     ),
                   ),
@@ -626,8 +626,8 @@ class _PremiumSidebar extends StatelessWidget {
                 if (scrollable) Navigator.of(context).pop();
                 router.push('/settings');
               },
-              icon: const Icon(Icons.settings_rounded,
-                  color: AppColors.textSecondary, size: 20),
+              icon: Icon(Icons.settings_rounded,
+                  color: AppColors.textSecondaryOf(context), size: 20),
             ),
           ],
         ),
@@ -653,16 +653,16 @@ class _PremiumSidebar extends StatelessWidget {
     return Container(
       width: 286,
       decoration: BoxDecoration(
-        color: AppColors.sidebar,
+        color: AppColors.canvasSoftOf(context),
         border: Border(
           right: BorderSide(
-            color: AppColors.borderStrong.withValues(alpha: 0.9),
+            color: AppColors.borderStrongOf(context).withValues(alpha: 0.9),
             width: 1,
           ),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.45),
+            color: AppColors.shadowOf(context, alpha: 0.45),
             blurRadius: 28,
             offset: const Offset(6, 0),
           ),
@@ -697,8 +697,8 @@ class _SidebarSection extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
             child: Text(
               title,
-              style: const TextStyle(
-                color: AppColors.textTertiary,
+              style: TextStyle(
+                color: AppColors.textTertiaryOf(context),
                 fontSize: 10,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 1.2,
@@ -751,7 +751,7 @@ class _SidebarItemState extends State<_SidebarItem> {
             color: active
                 ? AppColors.primary.withValues(alpha: 0.16)
                 : (_hovered
-                    ? AppColors.surface.withValues(alpha: 0.75)
+                    ? AppColors.surfaceOf(context).withValues(alpha: 0.75)
                     : Colors.transparent),
             border: Border.all(
               color: active
@@ -764,7 +764,7 @@ class _SidebarItemState extends State<_SidebarItem> {
               Icon(
                 widget.item.icon,
                 size: 18,
-                color: active ? AppColors.primary : AppColors.textSecondary,
+                color: active ? AppColors.primary : AppColors.textSecondaryOf(context),
               ),
               const SizedBox(width: 11),
               Expanded(
@@ -772,8 +772,8 @@ class _SidebarItemState extends State<_SidebarItem> {
                   widget.item.label,
                   style: TextStyle(
                     color: active
-                        ? AppColors.textPrimary
-                        : AppColors.textSecondary,
+                        ? AppColors.textPrimaryOf(context)
+                        : AppColors.textSecondaryOf(context),
                     fontWeight: active ? FontWeight.w700 : FontWeight.w600,
                     fontSize: 13,
                   ),
@@ -1017,7 +1017,7 @@ class _LiteProLabel extends StatelessWidget {
 void _showModeToggle(BuildContext context, AppModeProvider provider) {
   showModalBottomSheet(
     context: context,
-    backgroundColor: AppColors.surface,
+    backgroundColor: AppColors.surfaceOf(context),
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
@@ -1038,18 +1038,18 @@ class _ModeToggleSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Switch App Mode',
             style: TextStyle(
-                color: AppColors.textPrimary,
+                color: AppColors.textPrimaryOf(context),
                 fontSize: 18,
                 fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Demo mode uses sample data. Live mode uses your real Artyug account and transactions.',
             style: TextStyle(
-                color: AppColors.textSecondary, fontSize: 13, height: 1.4),
+                color: AppColors.textSecondaryOf(context), fontSize: 13, height: 1.4),
           ),
           const SizedBox(height: 16),
           _ModeOption(
@@ -1107,10 +1107,10 @@ class _ModeOption extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color:
-              active ? color.withValues(alpha: 0.14) : AppColors.surfaceVariant,
+              active ? color.withValues(alpha: 0.14) : AppColors.surfaceMutedOf(context),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-              color: active ? color.withValues(alpha: 0.5) : AppColors.border),
+              color: active ? color.withValues(alpha: 0.5) : AppColors.borderOf(context)),
         ),
         child: Row(
           children: [
@@ -1129,14 +1129,14 @@ class _ModeOption extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(title,
-                      style: const TextStyle(
-                          color: AppColors.textPrimary,
+                      style: TextStyle(
+                          color: AppColors.textPrimaryOf(context),
                           fontWeight: FontWeight.w700,
                           fontSize: 14)),
                   const SizedBox(height: 3),
                   Text(subtitle,
-                      style: const TextStyle(
-                          color: AppColors.textSecondary, fontSize: 12)),
+                      style: TextStyle(
+                          color: AppColors.textSecondaryOf(context), fontSize: 12)),
                 ],
               ),
             ),

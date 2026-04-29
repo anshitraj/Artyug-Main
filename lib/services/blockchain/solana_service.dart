@@ -72,7 +72,10 @@ class SolanaService {
     }
 
     try {
-      final rpcUrl = AppConfig.solanaRpcUrl;
+      // Use mainnet RPC in live mode, devnet RPC in demo mode
+      final rpcUrl = AppConfig.effectiveSolanaRpcUrl;
+      final network = AppConfig.chainMode == ChainMode.mainnet ? 'mainnet' : 'devnet';
+      debugPrint('[Solana] Submitting memo to $network via $rpcUrl');
       final privateKeyB58 = AppConfig.solanaPrivateKey!;
 
       // ── 1. Decode keypair ─────────────────────────────────────────────────
@@ -139,6 +142,7 @@ class SolanaService {
       txSig ??= await _sendTransaction(rpcUrl, signedTx, skipPreflight: true);
       if (txSig == null) return null;
 
+      // mainnet = no cluster param (Solscan default); devnet = ?cluster=devnet
       final clusterParam =
           AppConfig.chainMode == ChainMode.devnet ? '?cluster=devnet' : '';
       final explorerUrl = 'https://solscan.io/tx/$txSig$clusterParam';

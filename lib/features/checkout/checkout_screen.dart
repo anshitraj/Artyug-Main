@@ -225,6 +225,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         final payResult = await PaymentService.initiateRazorpayPayment(
           artworkId: painting.id,
           amountInr: painting.price?.toDouble() ?? 0,
+          artworkTitle: painting.title,
         );
 
         if (payResult == null || !payResult.success) {

@@ -949,7 +949,7 @@ class _PurchasesTabState extends State<_PurchasesTab> {
                   PopupMenuItem(
                     value: _PurchaseSort.title,
                     child: Text(
-                      'Title Aâ€“Z',
+                      'Title A–Z',
                       style: TextStyle(color: AppColors.textPrimaryOf(context)),
                     ),
                   ),

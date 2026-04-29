@@ -45,21 +45,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
   List<Map<String, dynamic>> _searchResults = [];
   bool _loading = true;
   bool _searching = false;
-  String _activeCategory = 'all';
+  final String _activeCategory = 'all';
   String _studioCategory = 'all';
   String _studioSort = 'trending';
   String? _loadError;
-
-  final _categories = [
-    {'id': 'all', 'name': 'All', 'emoji': '✨'},
-    {'id': 'painting', 'name': 'Painting', 'emoji': '🎨'},
-    {'id': 'digital', 'name': 'Digital', 'emoji': '💠'},
-    {'id': 'photography', 'name': 'Photography', 'emoji': '📷'},
-    {'id': 'sculpture', 'name': 'Sculpture', 'emoji': '🗿'},
-    {'id': 'drawing', 'name': 'Drawing', 'emoji': '✏️'},
-    {'id': 'print', 'name': 'Print', 'emoji': '🖼️'},
-    {'id': 'other', 'name': 'Other', 'emoji': '🧩'},
-  ];
 
   @override
   void initState() {
@@ -429,52 +418,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         ),
                       ],
                       // ── Category chips ────────────────────────────────
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        height: 40,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: _categories.length,
-                          separatorBuilder: (_, __) => const SizedBox(width: 8),
-                          itemBuilder: (_, i) {
-                            final cat = _categories[i];
-                            final active = _activeCategory == cat['id'];
-                            return GestureDetector(
-                              onTap: () =>
-                                  setState(() => _activeCategory = cat['id']!),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 180),
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 14, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: active
-                                      ? AppColors.primary
-                                      : AppColors.surfaceOf(context),
-                                  borderRadius: BorderRadius.circular(100),
-                                  border: Border.all(
-                                      color: active
-                                          ? AppColors.primary
-                                          : AppColors.borderOf(context)),
-                                ),
-                                child: Row(children: [
-                                  Text(cat['emoji']!,
-                                      style: const TextStyle(fontSize: 13)),
-                                  const SizedBox(width: 5),
-                                  Text(cat['name']!,
-                                      style: TextStyle(
-                                          color: active
-                                              ? Colors.white
-                                              : AppColors.textPrimaryOf(
-                                                  context),
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600)),
-                                ]),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-
                       const SizedBox(height: 20),
 
                       // ── Featured artists row ──────────────────────────
@@ -1166,3 +1109,4 @@ class _ExploreMarketplaceHero extends StatelessWidget {
     );
   }
 }
+

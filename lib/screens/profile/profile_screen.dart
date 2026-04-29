@@ -433,6 +433,25 @@ class _ProfileScreenState extends State<ProfileScreen>
                     ],
                   ),
 
+                  const SizedBox(height: 8),
+
+                  // ── Collector Dashboard shortcut ─────────────────────
+                  OutlinedButton.icon(
+                    onPressed: () => context.push('/collector-dashboard'),
+                    icon: const Icon(Icons.collections_bookmark_outlined,
+                        size: 16),
+                    label: const Text('My Collection & Holdings'),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 44),
+                      foregroundColor: AppColors.info,
+                      side: BorderSide(
+                          color: AppColors.info.withValues(alpha: 0.4)),
+                      padding: const EdgeInsets.symmetric(vertical: 11),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+
                   const SizedBox(height: 20),
 
 

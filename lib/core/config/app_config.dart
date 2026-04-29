@@ -57,10 +57,14 @@ class AppConfig {
           ? AppMode.live
           : AppMode.demo;
 
-  static ChainMode get chainMode =>
-      dotenv.env['ARTYUG_CHAIN_MODE']?.toLowerCase() == 'mainnet'
-          ? ChainMode.mainnet
-          : ChainMode.devnet;
+  static ChainMode get chainMode {
+    // When app is in live mode, always treat chain as mainnet
+    // regardless of ARTYUG_CHAIN_MODE setting — safety net.
+    if (appMode == AppMode.live) return ChainMode.mainnet;
+    return dotenv.env['ARTYUG_CHAIN_MODE']?.toLowerCase() == 'mainnet'
+        ? ChainMode.mainnet
+        : ChainMode.devnet;
+  }
 
   static bool get isDemoMode => appMode == AppMode.demo;
   static bool get isLiveMode => appMode == AppMode.live;
@@ -78,10 +82,27 @@ class AppConfig {
   }
 
   // ─── Blockchain ──────────────────────────────────────────────────────────
+  /// Devnet RPC (used in demo mode or explicit devnet).
   static String get solanaRpcUrl =>
       dotenv.env['SOLANA_RPC_URL']?.trim().isNotEmpty == true
           ? dotenv.env['SOLANA_RPC_URL']!.trim()
           : 'https://api.devnet.solana.com';
+
+  /// Mainnet RPC — used when [appMode] is live.
+  static String? get solanaLiveRpcUrl {
+    final u = dotenv.env['SOLANA_LIVE_RPC_URL']?.trim();
+    return (u != null && u.isNotEmpty) ? u : null;
+  }
+
+  /// The RPC URL that should actually be used for transactions.
+  /// In live mode: prefers [solanaLiveRpcUrl] (mainnet), falls back to [solanaRpcUrl].
+  /// In demo mode: always uses [solanaRpcUrl] (devnet).
+  static String get effectiveSolanaRpcUrl {
+    if (appMode == AppMode.live) {
+      return solanaLiveRpcUrl ?? solanaRpcUrl;
+    }
+    return solanaRpcUrl;
+  }
 
   /// Base58 Solana keypair: **64 bytes** `[secret|pub]` (Phantom “export private key”)
   /// or **32-byte** secret seed. A **public wallet address alone cannot sign** txs.

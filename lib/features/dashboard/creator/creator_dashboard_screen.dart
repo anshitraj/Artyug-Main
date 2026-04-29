@@ -190,7 +190,7 @@ class _StudioHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final canPop = Navigator.of(context).canPop();
     return Material(
-      color: AppColors.surface,
+      color: AppColors.surfaceOf(context),
       child: SafeArea(
         bottom: false,
         child: Padding(
@@ -202,8 +202,11 @@ class _StudioHeader extends StatelessWidget {
                 children: [
                   if (canPop)
                     IconButton(
-                      icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                          size: 20, color: AppColors.textPrimary),
+                      icon: Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                        size: 20,
+                        color: AppColors.textPrimaryOf(context),
+                      ),
                       onPressed: () => Navigator.of(context).pop(),
                     ),
                   if (!canPop) const SizedBox(width: 8),
@@ -232,8 +235,10 @@ class _StudioHeader extends StatelessWidget {
                     children: [
                       IconButton(
                         tooltip: 'Home',
-                        icon: const Icon(Icons.home_rounded,
-                            color: AppColors.textSecondary),
+                        icon: Icon(
+                          Icons.home_rounded,
+                          color: AppColors.textSecondaryOf(context),
+                        ),
                         onPressed: () => context.go('/main'),
                       ),
                       Container(
@@ -245,10 +250,10 @@ class _StudioHeader extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 6),
-                      const Text(
+                      Text(
                         'Live',
                         style: TextStyle(
-                          color: AppColors.textSecondary,
+                          color: AppColors.textSecondaryOf(context),
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
@@ -256,8 +261,10 @@ class _StudioHeader extends StatelessWidget {
                     ],
                   ),
                   IconButton(
-                    icon: const Icon(Icons.settings_outlined,
-                        color: AppColors.textSecondary),
+                    icon: Icon(
+                      Icons.settings_outlined,
+                      color: AppColors.textSecondaryOf(context),
+                    ),
                     onPressed: () => context.push('/settings'),
                   ),
                 ],
@@ -293,8 +300,8 @@ class _StudioHeader extends StatelessWidget {
                             Flexible(
                               child: Text(
                                 profile?.displayNameOrUsername ?? 'Creator',
-                                style: const TextStyle(
-                                  color: AppColors.textPrimary,
+                                style: TextStyle(
+                                  color: AppColors.textPrimaryOf(context),
                                   fontSize: 17,
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -316,7 +323,7 @@ class _StudioHeader extends StatelessWidget {
                         Text(
                           'Sales, certificates, and catalogue',
                           style: TextStyle(
-                            color: AppColors.textSecondary.withValues(alpha: 0.9),
+                            color: AppColors.textSecondaryOf(context).withValues(alpha: 0.9),
                             fontSize: 12,
                           ),
                         ),
@@ -424,19 +431,20 @@ class _KpiTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final border = accent
-        ? AppColors.primary.withValues(alpha: 0.35)
-        : AppColors.border;
+        ? AppColors.primary.withValues(alpha: isDark ? 0.35 : 0.28)
+        : AppColors.borderOf(context);
     final bg = accent
-        ? AppColors.primary.withValues(alpha: 0.14)
-        : AppColors.surfaceVariant.withValues(alpha: 0.68);
+        ? AppColors.primary.withValues(alpha: isDark ? 0.14 : 0.08)
+        : AppColors.surfaceMutedOf(context).withValues(alpha: isDark ? 0.75 : 0.95);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
             bg,
-            AppColors.surface.withValues(alpha: 0.72),
+            AppColors.surfaceOf(context).withValues(alpha: isDark ? 0.72 : 0.98),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -445,8 +453,8 @@ class _KpiTile extends StatelessWidget {
         border: Border.all(color: border),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.22),
-            blurRadius: 20,
+            color: AppColors.shadowOf(context, alpha: isDark ? 0.30 : 0.10),
+            blurRadius: isDark ? 20 : 12,
             offset: const Offset(0, 10),
           ),
         ],
@@ -467,7 +475,7 @@ class _KpiTile extends StatelessWidget {
                 child: Text(
                   label,
                   style: TextStyle(
-                    color: AppColors.textSecondary.withValues(alpha: 0.95),
+                    color: AppColors.textSecondaryOf(context).withValues(alpha: 0.95),
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                     height: 1.2,
@@ -495,7 +503,7 @@ class _KpiTile extends StatelessWidget {
             Text(
               sublabel!,
               style: TextStyle(
-                color: AppColors.textTertiary.withValues(alpha: 0.9),
+                color: AppColors.textTertiaryOf(context).withValues(alpha: 0.9),
                 fontSize: 10,
                 fontWeight: FontWeight.w500,
               ),
@@ -517,23 +525,24 @@ class _RecentSalesPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            AppColors.surfaceVariant.withValues(alpha: 0.84),
-            AppColors.surface.withValues(alpha: 0.68),
+            AppColors.surfaceMutedOf(context).withValues(alpha: isDark ? 0.84 : 0.96),
+            AppColors.surfaceOf(context).withValues(alpha: isDark ? 0.68 : 1),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: AppColors.borderOf(context)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
-            blurRadius: 24,
+            color: AppColors.shadowOf(context, alpha: isDark ? 0.24 : 0.10),
+            blurRadius: isDark ? 24 : 14,
             offset: const Offset(0, 10),
           ),
         ],
@@ -541,10 +550,10 @@ class _RecentSalesPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Recent sales',
             style: TextStyle(
-              color: AppColors.textPrimary,
+              color: AppColors.textPrimaryOf(context),
               fontSize: 15,
               fontWeight: FontWeight.w700,
             ),
@@ -557,7 +566,7 @@ class _RecentSalesPanel extends StatelessWidget {
                 child: Text(
                   'No completed sales yet',
                   style: TextStyle(
-                    color: AppColors.textSecondary.withValues(alpha: 0.9),
+                    color: AppColors.textSecondaryOf(context).withValues(alpha: 0.9),
                     fontSize: 13,
                   ),
                 ),
@@ -593,9 +602,9 @@ class _OrderRow extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: AppColors.surfaceOf(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
+        border: Border.all(color: AppColors.borderOf(context).withValues(alpha: 0.6)),
       ),
       child: Row(
         children: [
@@ -614,8 +623,8 @@ class _OrderRow extends StatelessWidget {
               children: [
                 Text(
                   order.artworkTitle ?? 'Artwork',
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
+                  style: TextStyle(
+                    color: AppColors.textPrimaryOf(context),
                     fontWeight: FontWeight.w600,
                     fontSize: 13,
                   ),
@@ -625,7 +634,7 @@ class _OrderRow extends StatelessWidget {
                 Text(
                   order.buyerName ?? 'Buyer',
                   style: TextStyle(
-                    color: AppColors.textSecondary.withValues(alpha: 0.9),
+                    color: AppColors.textSecondaryOf(context).withValues(alpha: 0.9),
                     fontSize: 11,
                   ),
                   maxLines: 1,
@@ -704,6 +713,7 @@ class _QuickChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -712,9 +722,10 @@ class _QuickChip extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-            color: AppColors.surfaceVariant,
+            color: AppColors.surfaceMutedOf(context)
+                .withValues(alpha: isDark ? 0.85 : 0.96),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.border),
+            border: Border.all(color: AppColors.borderOf(context)),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -723,8 +734,8 @@ class _QuickChip extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 label,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
+                style: TextStyle(
+                  color: AppColors.textPrimaryOf(context),
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                 ),
@@ -826,8 +837,8 @@ class _SectionTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Text(
         title,
-        style: const TextStyle(
-          color: AppColors.textPrimary,
+        style: TextStyle(
+          color: AppColors.textPrimaryOf(context),
           fontSize: 16,
           fontWeight: FontWeight.w700,
           letterSpacing: -0.2,
@@ -848,36 +859,37 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            AppColors.surfaceVariant.withValues(alpha: 0.84),
-            AppColors.surface.withValues(alpha: 0.72),
+            AppColors.surfaceMutedOf(context).withValues(alpha: isDark ? 0.84 : 0.96),
+            AppColors.surfaceOf(context).withValues(alpha: isDark ? 0.72 : 1),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: AppColors.borderOf(context)),
       ),
       child: Column(
         children: [
-          Icon(icon, color: AppColors.textTertiary, size: 36),
+          Icon(icon, color: AppColors.textTertiaryOf(context), size: 36),
           const SizedBox(height: 8),
           Text(
             message,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
+            style: TextStyle(
+              color: AppColors.textPrimaryOf(context),
               fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             sub,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
+            style: TextStyle(
+              color: AppColors.textSecondaryOf(context),
               fontSize: 12,
             ),
           ),
@@ -902,14 +914,15 @@ class _AuthenticityCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final pct = (verificationRate * 100).round();
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            AppColors.surfaceVariant.withValues(alpha: 0.88),
-            AppColors.surface.withValues(alpha: 0.72),
+            AppColors.surfaceMutedOf(context).withValues(alpha: isDark ? 0.88 : 0.97),
+            AppColors.surfaceOf(context).withValues(alpha: isDark ? 0.72 : 1),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -920,8 +933,8 @@ class _AuthenticityCard extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.08),
-            blurRadius: 20,
+            color: AppColors.primary.withValues(alpha: isDark ? 0.08 : 0.05),
+            blurRadius: isDark ? 20 : 12,
             offset: const Offset(0, 8),
           ),
         ],
@@ -948,18 +961,18 @@ class _AuthenticityCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Certificate vault',
                       style: TextStyle(
-                        color: AppColors.textPrimary,
+                        color: AppColors.textPrimaryOf(context),
                         fontWeight: FontWeight.w700,
                         fontSize: 14,
                       ),
                     ),
                     Text(
                       '$certificatesIssued certificate${certificatesIssued == 1 ? '' : 's'} linked',
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
+                      style: TextStyle(
+                        color: AppColors.textSecondaryOf(context),
                         fontSize: 12,
                       ),
                     ),
@@ -977,9 +990,9 @@ class _AuthenticityCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          const Text(
+          Text(
             'Verification coverage',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+            style: TextStyle(color: AppColors.textSecondaryOf(context), fontSize: 11),
           ),
           const SizedBox(height: 6),
           ClipRRect(
@@ -987,7 +1000,7 @@ class _AuthenticityCard extends StatelessWidget {
             child: LinearProgressIndicator(
               value: verificationRate.clamp(0.0, 1.0),
               minHeight: 8,
-              backgroundColor: AppColors.surfaceHigh,
+              backgroundColor: AppColors.surfaceHighOf(context),
               valueColor:
                   const AlwaysStoppedAnimation<Color>(AppColors.primary),
             ),
@@ -1050,6 +1063,7 @@ class _QuickAccessCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -1057,18 +1071,18 @@ class _QuickAccessCard extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              AppColors.surfaceVariant.withValues(alpha: 0.86),
-              AppColors.surface.withValues(alpha: 0.72),
+              AppColors.surfaceMutedOf(context).withValues(alpha: isDark ? 0.86 : 0.96),
+              AppColors.surfaceOf(context).withValues(alpha: isDark ? 0.72 : 1),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: AppColors.borderOf(context)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.18),
-              blurRadius: 18,
+              color: AppColors.shadowOf(context, alpha: isDark ? 0.20 : 0.10),
+              blurRadius: isDark ? 18 : 12,
               offset: const Offset(0, 8),
             ),
           ],
@@ -1089,19 +1103,19 @@ class _QuickAccessCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(title,
-                      style: const TextStyle(
-                          color: AppColors.textPrimary,
+                      style: TextStyle(
+                          color: AppColors.textPrimaryOf(context),
                           fontSize: 15,
                           fontWeight: FontWeight.w700)),
                   const SizedBox(height: 2),
                   Text(subtitle,
-                      style: const TextStyle(
-                          color: AppColors.textTertiary, fontSize: 12)),
+                      style: TextStyle(
+                          color: AppColors.textTertiaryOf(context), fontSize: 12)),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded,
-                color: AppColors.textTertiary, size: 20),
+            Icon(Icons.chevron_right_rounded,
+                color: AppColors.textTertiaryOf(context), size: 20),
           ],
         ),
       ),

@@ -53,16 +53,13 @@ class OrderRepository {
   }
 
   /// Create a demo/test purchase — no real payment.
-  /// Mirrors the business logic in artyug-old/apps/api/src/routes/orders.ts
   static Future<OrderResult> createDemoOrder(String paintingId) async {
     final user = SupabaseClientHelper.currentUser;
     if (user == null) throw Exception('Not authenticated');
 
-    // Fetch painting
     final painting = await getPainting(paintingId);
     if (painting == null) throw Exception('Artwork not found');
 
-    // Fetch buyer profile name
     final profileData = await _client
         .from('profiles')
         .select('display_name, username')
@@ -78,7 +75,6 @@ class OrderRepository {
     final certId = _uuid.v4();
     final qrCode = 'QR-${_randomAlphanumeric(10)}';
 
-    // Insert order
     await _client.from('orders').insert({
       'id': orderId,
       'artwork_id': paintingId,
@@ -90,7 +86,7 @@ class OrderRepository {
       'seller_id': painting.artistId,
       'seller_name': artistName,
       'amount': painting.price ?? 0,
-      'total_amount': painting.price ?? 0, // NOT NULL column
+      'total_amount': painting.price ?? 0,
       'currency': 'INR',
       'payment_method': 'test',
       'status': 'completed',
@@ -99,7 +95,6 @@ class OrderRepository {
       'purchase_mode': 'demo',
     });
 
-    // Optional Solana memo attestation (devnet or mainnet — see AppConfig.chainMode)
     String? blockchainHash;
     String? solanaExplorerUrl;
 
@@ -127,7 +122,6 @@ class OrderRepository {
       }
     }
 
-    // Insert certificate
     await _client.from('certificates').insert({
       'id': certId,
       'order_id': orderId,
@@ -145,7 +139,6 @@ class OrderRepository {
       'current_market_price': (painting.price ?? 0) * 1.15,
     });
 
-    // Fetch fresh order + certificate
     final orderData =
         await _client.from('orders').select().eq('id', orderId).single();
     final certData =
@@ -159,7 +152,133 @@ class OrderRepository {
     );
   }
 
-  /// Fetch all orders where current user is the buyer  
+  /// Create a **real paid** order after a successful Razorpay payment.
+  ///
+  /// Call this immediately after [PaymentService.initiateRazorpayPayment]
+  /// returns a successful [PaymentResult].  After inserting the order it fires
+  /// a Solana Memo attestation to produce the blockchain hash.
+  static Future<OrderResult> createLiveOrder({
+    required String paintingId,
+    required String razorpayOrderId,
+    required String razorpayPaymentId,
+    required double amountPaid,
+    String currency = 'INR',
+  }) async {
+    final user = SupabaseClientHelper.currentUser;
+    if (user == null) throw Exception('Not authenticated');
+
+    final painting = await getPainting(paintingId);
+    if (painting == null) throw Exception('Artwork not found');
+
+    final profileData = await _client
+        .from('profiles')
+        .select('display_name, username')
+        .eq('id', user.id)
+        .maybeSingle();
+    final buyerName = profileData?['display_name'] as String? ??
+        profileData?['username'] as String? ??
+        'Collector';
+
+    final artistName = painting.artistDisplayName ?? 'Artist';
+
+    final orderId = _uuid.v4();
+    final certId = _uuid.v4();
+    final qrCode = 'QR-${_randomAlphanumeric(10)}';
+
+    // Insert order with live Razorpay details
+    await _client.from('orders').insert({
+      'id': orderId,
+      'artwork_id': paintingId,
+      'artwork_title': painting.title,
+      'artwork_media_url': painting.imageUrl,
+      'artwork_type': painting.medium ?? 'original',
+      'buyer_id': user.id,
+      'buyer_name': buyerName,
+      'seller_id': painting.artistId,
+      'seller_name': artistName,
+      'amount': amountPaid,
+      'total_amount': amountPaid,
+      'currency': currency,
+      'payment_method': 'razorpay',
+      'razorpay_order_id': razorpayOrderId,
+      'razorpay_payment_id': razorpayPaymentId,
+      'status': 'completed',
+      'authenticity_enabled': true,
+      'certificate_id': certId,
+      'purchase_mode': 'live',
+    });
+
+    // Mark painting as sold so it can't be bought again
+    try {
+      await _client.from('paintings').update({
+        'is_sold': true,
+        'status': 'sold',
+      }).eq('id', paintingId);
+    } catch (e) {
+      debugPrint('[OrderRepository] Could not mark painting sold: $e');
+    }
+
+    // Solana memo attestation — produces the blockchain hash
+    String? blockchainHash;
+    String? solanaExplorerUrl;
+
+    if (AppConfig.isSolanaReady) {
+      final purchasedAt = DateTime.now().toUtc();
+      final att = await SolanaService.sendMemoAttestation(
+        orderId: orderId,
+        certId: certId,
+        artworkId: paintingId,
+        buyerId: user.id,
+        buyerDisplayName: buyerName,
+        artworkTitle: painting.title,
+        amount: amountPaid,
+        currency: currency,
+        purchasedAt: purchasedAt,
+      );
+      if (att != null) {
+        blockchainHash = att.signatureBase58;
+        solanaExplorerUrl = att.explorerUrl;
+        debugPrint('[OrderRepository] Live Solana hash: $blockchainHash');
+        debugPrint('[OrderRepository] Explorer: $solanaExplorerUrl');
+      } else {
+        debugPrint('[OrderRepository] Solana attestation skipped — order still recorded.');
+      }
+    }
+
+    // Insert certificate with blockchain hash
+    await _client.from('certificates').insert({
+      'id': certId,
+      'order_id': orderId,
+      'artwork_id': paintingId,
+      'artwork_title': painting.title,
+      'artwork_media_url': painting.imageUrl,
+      'artist_id': painting.artistId,
+      'artist_name': artistName,
+      'owner_id': user.id,
+      'owner_name': buyerName,
+      'purchase_date': DateTime.now().toIso8601String(),
+      if (blockchainHash != null) 'blockchain_hash': blockchainHash,
+      'qr_code': qrCode,
+      'nfc_enabled': AppConfig.nfcEnabled,
+      'current_market_price': amountPaid * 1.15,
+      'payment_method': 'razorpay',
+      'razorpay_order_id': razorpayOrderId,
+    });
+
+    final orderData =
+        await _client.from('orders').select().eq('id', orderId).single();
+    final certData =
+        await _client.from('certificates').select().eq('id', certId).single();
+
+    return OrderResult(
+      order: OrderModel.fromJson(orderData),
+      certificate: CertificateModel.fromJson(certData),
+      solanaExplorerUrl: solanaExplorerUrl,
+      purchaseMode: 'live',
+    );
+  }
+
+  /// Fetch all orders where current user is the buyer
   static Future<List<OrderModel>> getMyPurchases() async {
     final userId = SupabaseClientHelper.currentUserId;
     if (userId == null) return [];

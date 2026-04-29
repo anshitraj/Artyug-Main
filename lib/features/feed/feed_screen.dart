@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -105,7 +105,7 @@ class _FeedScreenState extends State<FeedScreen> {
           (e) => _CollectionItem(
             title: '${e.name} Collection',
             volume:
-                '${e.count} items â€¢ ${e.likes} likes â€¢ â‚¹${e.volume.toStringAsFixed(0)} volume',
+                '${e.count} items • ${e.likes} likes • ₹${e.volume.toStringAsFixed(0)} volume',
             cover: e.cover,
           ),
         )
@@ -140,7 +140,7 @@ class _FeedScreenState extends State<FeedScreen> {
           (e) => _ArtistItem(
             id: e.id,
             name: e.name,
-            stat: '${e.works} works â€¢ ${e.likes} likes',
+            stat: '${e.works} works • ${e.likes} likes',
             avatar: e.avatar,
           ),
         )
@@ -520,16 +520,6 @@ class _FeedScreenState extends State<FeedScreen> {
                   .where((p) => !becauseYouFollow.any((b) => b.id == p.id))
                   .take(8)
                   .toList();
-          final followedStudioDrops = smartPaintings
-              .where((p) => _followedStudioIds.contains(p.shopId))
-              .take(8)
-              .toList();
-          final freshFromStudios = followedStudioDrops.isNotEmpty
-              ? followedStudioDrops
-              : smartPaintings
-                  .where((p) => (p.shopId ?? '').trim().isNotEmpty)
-                  .take(8)
-                  .toList();
           final topVerified = smartPaintings
               .where((p) => p.isVerifiedArtwork || (p.artistIsVerified ?? false) || p.hasNfcAttached)
               .take(8)
@@ -807,25 +797,6 @@ class _FeedScreenState extends State<FeedScreen> {
                   child: Padding(
                     padding: EdgeInsets.fromLTRB(hPad, 18, hPad, 0),
                     child: _SectionHeader(
-                      title: 'New from Followed Studios',
-                      subtitle: 'Fresh drops with recency badges',
-                      actionLabel: 'View all',
-                      onActionTap: () => context.push('/shop'),
-                    ),
-                  ),
-                ),
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(hPad, 10, hPad, 0),
-                    child: _FreshFromStudiosRail(
-                      paintings: freshFromStudios,
-                    ),
-                  ),
-                ),
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(hPad, 18, hPad, 0),
-                    child: _SectionHeader(
                       title: 'Top Verified This Week',
                       subtitle: 'Verification and provenance-first highlights',
                       actionLabel: 'View all',
@@ -1043,18 +1014,10 @@ class _FeaturedStudiosStrip extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  CircleAvatar(
+                  _AvatarWithFallback(
+                    url: avatar ?? '',
                     radius: 30,
-                    backgroundColor: AppColors.primary.withValues(alpha: 0.18),
-                    backgroundImage: (avatar != null && avatar.isNotEmpty)
-                        ? NetworkImage(avatar)
-                        : null,
-                    child: (avatar == null || avatar.isEmpty)
-                        ? const Text(
-                            'ðŸª',
-                            style: TextStyle(fontSize: 22),
-                          )
-                        : null,
+                    label: name,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -1134,7 +1097,7 @@ class _FeaturedStudiosStrip extends StatelessWidget {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          '$works works â€¢ $collections collections',
+                          '$works works • $collections collections',
                           style: TextStyle(
                             color: AppColors.textSecondaryOf(context),
                             fontSize: 12,
@@ -1438,6 +1401,7 @@ class _EcosystemSplitFeed extends StatelessWidget {
         (a, b) => (b.createdAt ?? DateTime(2000))
             .compareTo(a.createdAt ?? DateTime(2000)),
       );
+    final threads = latestFirst.take(8).toList();
     final forSale = latestFirst
         .where((p) => p.isAvailable || p.price != null || p.listingType == 'auction')
         .toList();
@@ -1448,6 +1412,20 @@ class _EcosystemSplitFeed extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        _MiniFeedHeader(
+          title: 'Threads',
+          subtitle: 'Latest creator thoughts, process notes, and story-first posts',
+        ),
+        const SizedBox(height: 10),
+        if (threads.isEmpty)
+          const _MiniFeedEmpty(label: 'No threads yet. Ask creators to share their latest process.')
+        else
+          _ThreadRail(
+            paintings: threads,
+            onLike: onLike,
+            onTap: (id) => onArtworkTap?.call(id),
+          ),
+        const SizedBox(height: 18),
         _MiniFeedHeader(
           title: 'For Sale',
           subtitle: 'Listings with price, buy, or auction context',
@@ -1491,6 +1469,159 @@ class _EcosystemSplitFeed extends StatelessWidget {
             onTap: (id) => onArtworkTap?.call(id),
           ),
       ],
+    );
+  }
+}
+
+class _ThreadRail extends StatelessWidget {
+  final List<PaintingModel> paintings;
+  final ValueChanged<String> onLike;
+  final ValueChanged<String>? onTap;
+
+  const _ThreadRail({
+    required this.paintings,
+    required this.onLike,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 338,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: paintings.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (context, i) {
+          final p = paintings[i];
+          final description = (p.description ?? '').trim().isNotEmpty
+              ? p.description!.trim()
+              : '${(p.medium ?? '').trim()} ${(p.category ?? '').trim()}'.trim();
+          return SizedBox(
+            width: 265,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () {
+                onTap?.call(p.id);
+                context.push('/artwork/${p.id}', extra: p);
+              },
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceOf(context),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.borderOf(context)),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    MarketplaceMediaFrame(
+                      imageUrl: p.resolvedImageUrl,
+                      aspectRatio: 1.32,
+                      borderRadius: BorderRadius.zero,
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 9, 10, 0),
+                      child: Text(
+                        p.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: AppColors.textPrimaryOf(context),
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                    if (description.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(10, 5, 10, 0),
+                        child: Text(
+                          description,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: AppColors.textSecondaryOf(context),
+                            fontSize: 11.5,
+                            height: 1.35,
+                          ),
+                        ),
+                      ),
+                    const Spacer(),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 9,
+                            backgroundColor: AppColors.accentSoftOf(context),
+                            foregroundImage: p.resolvedArtistAvatarUrl != null &&
+                                    p.resolvedArtistAvatarUrl!.trim().isNotEmpty
+                                ? NetworkImage(p.resolvedArtistAvatarUrl!)
+                                : null,
+                            child: Text(
+                              ((p.artistDisplayName ?? 'A').trim().isNotEmpty
+                                      ? (p.artistDisplayName ?? 'A')
+                                          .trim()
+                                          .substring(0, 1)
+                                      : 'A')
+                                  .toUpperCase(),
+                              style: TextStyle(
+                                color: AppColors.accentOf(context),
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              p.createdAt == null ? 'Just now' : _relativeTime(p.createdAt!),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: AppColors.textTertiaryOf(context),
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          InkWell(
+                            borderRadius: BorderRadius.circular(999),
+                            onTap: () => onLike(p.id),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  p.isLikedByMe
+                                      ? Icons.favorite_rounded
+                                      : Icons.favorite_border_rounded,
+                                  size: 15,
+                                  color: p.isLikedByMe
+                                      ? AppColors.primary
+                                      : AppColors.textSecondaryOf(context),
+                                ),
+                                const SizedBox(width: 3),
+                                Text(
+                                  '${p.likesCount}',
+                                  style: TextStyle(
+                                    color: AppColors.textSecondaryOf(context),
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }
@@ -2059,7 +2190,7 @@ class _LiveAuctionsNowRail extends StatelessWidget {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(p?.title ?? 'Live auction', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: AppColors.textPrimaryOf(context), fontWeight: FontWeight.w800)),
                   const SizedBox(height: 6),
-                  Text('Current bid: â‚¹${high.toStringAsFixed(0)}', style: TextStyle(color: AppColors.textSecondaryOf(context), fontSize: 12)),
+                  Text('Current bid: ₹${high.toStringAsFixed(0)}', style: TextStyle(color: AppColors.textSecondaryOf(context), fontSize: 12)),
                   const SizedBox(height: 4),
                   Text('Ends in $remain', style: const TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w700)),
                   const Spacer(),
@@ -2076,39 +2207,6 @@ class _LiveAuctionsNowRail extends StatelessWidget {
           );
         },
       ),
-    );
-  }
-}
-
-class _FreshFromStudiosRail extends StatelessWidget {
-  final List<PaintingModel> paintings;
-
-  const _FreshFromStudiosRail({required this.paintings});
-
-  @override
-  Widget build(BuildContext context) {
-    if (paintings.isEmpty) {
-      return _SmartEmptyCard(label: 'No new drops from your followed studios yet.', cta: 'Discover studios', onTap: () => context.push('/shop'));
-    }
-    return Column(
-      children: paintings.take(5).map((p) {
-        final recency = p.createdAt == null ? 'new' : _relativeTime(p.createdAt!);
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: ListTile(
-            tileColor: AppColors.surfaceOf(context),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: AppColors.borderOf(context))),
-            title: Text(p.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-            subtitle: Text(p.artistDisplayName ?? 'Creator', maxLines: 1, overflow: TextOverflow.ellipsis),
-            trailing: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(999)),
-              child: Text(recency, style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700, fontSize: 11)),
-            ),
-            onTap: () => context.push('/artwork/${p.id}'),
-          ),
-        );
-      }).toList(),
     );
   }
 }
@@ -2671,9 +2769,13 @@ class _HorizontalArtists extends StatelessWidget {
                 border: Border.all(color: AppColors.borderOf(context)),
               ),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  CircleAvatar(
-                      radius: 24, backgroundImage: NetworkImage(artist.avatar)),
+                  _AvatarWithFallback(
+                    url: artist.avatar,
+                    radius: 24,
+                    label: artist.name,
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
@@ -2681,6 +2783,7 @@ class _HorizontalArtists extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
                             Expanded(
                               child: Text(
@@ -2688,20 +2791,27 @@ class _HorizontalArtists extends StatelessWidget {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                    color: AppColors.textPrimaryOf(context),
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 13),
+                                  color: AppColors.textPrimaryOf(context),
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                ),
                               ),
                             ),
+                            const SizedBox(width: 4),
                             const Icon(Icons.verified_rounded,
                                 size: 15, color: AppColors.info),
                           ],
                         ),
-                        const SizedBox(height: 4),
-                        Text(artist.stat,
-                            style: TextStyle(
-                                color: AppColors.textSecondaryOf(context),
-                                fontSize: 12)),
+                        const SizedBox(height: 3),
+                        Text(
+                          artist.stat,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: AppColors.textSecondaryOf(context),
+                            fontSize: 11.5,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -2993,9 +3103,9 @@ class _RecentActivityItem {
   String get displayPriceAndTime {
     final amountText = amount == null
         ? 'Amount unavailable'
-        : 'â‚¹${amount!.toStringAsFixed(0)}';
+        : '₹${amount!.toStringAsFixed(0)}';
     final timeText = _formatRelativeTime(purchasedAt);
-    return '$amountText â€¢ $timeText';
+    return '$amountText • $timeText';
   }
 
   static String _formatRelativeTime(DateTime? date) {
@@ -3247,4 +3357,65 @@ class _EcosystemShowMoreDialogState extends State<_EcosystemShowMoreDialog> {
 }
 
 
+/// A [CircleAvatar] that gracefully falls back to an initial-letter placeholder
+/// when the network image URL is empty or fails to load.
+class _AvatarWithFallback extends StatelessWidget {
+  final String url;
+  final double radius;
+  final String label;
+
+  const _AvatarWithFallback({
+    required this.url,
+    required this.radius,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final initial = label.trim().isEmpty ? '?' : label.trim()[0].toUpperCase();
+    final hasUrl = url.trim().isNotEmpty;
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: AppColors.primary.withValues(alpha: 0.15),
+      child: ClipOval(
+        child: hasUrl
+            ? Image.network(
+                url,
+                width: radius * 2,
+                height: radius * 2,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _InitialLabel(
+                  initial: initial,
+                  radius: radius,
+                ),
+              )
+            : _InitialLabel(initial: initial, radius: radius),
+      ),
+    );
+  }
+}
+
+class _InitialLabel extends StatelessWidget {
+  final String initial;
+  final double radius;
+  const _InitialLabel({required this.initial, required this.radius});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: radius * 2,
+      height: radius * 2,
+      color: AppColors.primary.withValues(alpha: 0.15),
+      alignment: Alignment.center,
+      child: Text(
+        initial,
+        style: TextStyle(
+          color: AppColors.primary,
+          fontWeight: FontWeight.w800,
+          fontSize: radius * 0.75,
+        ),
+      ),
+    );
+  }
+}
 

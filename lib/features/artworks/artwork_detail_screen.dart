@@ -1,4 +1,4 @@
-﻿import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -10,6 +10,8 @@ import '../../models/painting.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/feed_provider.dart';
 import '../../repositories/painting_repository.dart';
+import '../../repositories/order_repository.dart';
+import '../../services/payments/payment_service.dart';
 import '../../widgets/feed/marketplace_media.dart';
 
 class ArtworkDetailScreen extends StatefulWidget {
@@ -646,6 +648,7 @@ class _ActionZone extends StatelessWidget {
           .maybeSingle();
       final auctionId = row?['id']?.toString();
       if (auctionId == null || auctionId.isEmpty) {
+        if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('No live auction found for this artwork.')),
         );
@@ -654,85 +657,116 @@ class _ActionZone extends StatelessWidget {
       if (!context.mounted) return;
       context.push('/auction/$auctionId');
     } catch (_) {
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Unable to open auction right now.')),
       );
     }
   }
 
-  Future<void> _openBuyIntent(BuildContext context) async {
-    final auth = context.read<AuthProvider>();
+  /// Live Razorpay → Solana mainnet memo attestation flow.
+  /// Runs only when ARTYUG_APP_MODE=live; chainMode auto-maps to mainnet.
+  Future<void> _openBuyIntent(BuildContext ctx) async {
+    final auth = ctx.read<AuthProvider>();
     if (!auth.isAuthenticated) {
-      context.push('/sign-in');
+      ctx.push('/sign-in');
       return;
     }
-    final confirm = await showModalBottomSheet<bool>(
-      context: context,
-      backgroundColor: AppColors.surfaceOf(context),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Confirm Purchase Intent',
-              style: TextStyle(color: AppColors.textPrimaryOf(context), fontSize: 18, fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${painting.title}\n${painting.displayPrice}',
-              style: TextStyle(color: AppColors.textSecondaryOf(context), height: 1.5),
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              'Payment integration is in beta. We will save your buy intent and notify you when checkout is enabled.',
-              style: TextStyle(color: AppColors.warning, fontSize: 12),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    child: const Text('Cancel'),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.pop(context, true),
-                    child: const Text('Save Intent'),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
+
+    final amountInr = (painting.price ?? 0).toDouble();
+    if (amountInr <= 0) {
+      ScaffoldMessenger.of(ctx).showSnackBar(
+        const SnackBar(content: Text('This artwork has no price set.')),
+      );
+      return;
+    }
+
+    // Step 1: Show spinner while Edge Function creates the Razorpay order
+    showDialog(
+      context: ctx,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
     );
-    if (confirm != true || !context.mounted) return;
+
     try {
-      await Supabase.instance.client.from('purchase_intents').insert({
-        'painting_id': painting.id,
-        'buyer_id': auth.user!.id,
-        'amount': painting.price ?? 0,
-        'currency': painting.currency ?? 'INR',
-        'status': 'pending',
-        'notes': 'Created from artwork detail beta buy flow',
-      });
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Purchase intent saved. Payment integration coming soon.')),
+      final result = await PaymentService.initiateRazorpayPayment(
+        artworkId: painting.id,
+        amountInr: amountInr,
+        artworkTitle: painting.title,
+        contactEmail: auth.user?.email,
       );
-    } catch (_) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Buy intent captured locally. Payment flow is in beta.')),
+
+      if (!ctx.mounted) return;
+      Navigator.of(ctx, rootNavigator: true).pop(); // dismiss order-creation spinner
+
+      if (result == null || !result.success) {
+        ScaffoldMessenger.of(ctx).showSnackBar(
+          SnackBar(
+            content: Text(result?.errorMessage ??
+                'Payment cancelled or failed. Please try again.'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return;
+      }
+
+      // Step 2: Payment succeeded — record order + Solana mainnet memo
+      if (!ctx.mounted) return;
+      showDialog(
+        context: ctx,
+        barrierDismissible: false,
+        builder: (_) => const Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text(
+                'Recording on blockchain\u2026',
+                style: TextStyle(color: Colors.white, fontSize: 14),
+              ),
+            ],
+          ),
+        ),
       );
+
+      OrderResult orderResult;
+      try {
+        orderResult = await OrderRepository.createLiveOrder(
+          paintingId: painting.id,
+          razorpayOrderId: result.razorpayOrderId ?? '',
+          razorpayPaymentId: result.razorpayPaymentId ?? '',
+          amountPaid: amountInr,
+        );
+      } catch (e) {
+        if (ctx.mounted) {
+          Navigator.of(ctx, rootNavigator: true).pop();
+          ScaffoldMessenger.of(ctx).showSnackBar(
+            SnackBar(
+              content: Text('Payment received but order recording failed: $e'),
+              backgroundColor: AppColors.warning,
+              duration: const Duration(seconds: 6),
+            ),
+          );
+        }
+        return;
+      }
+
+      if (!ctx.mounted) return;
+      Navigator.of(ctx, rootNavigator: true).pop(); // dismiss blockchain loader
+
+      // Step 3: Navigate to confirmation with certificate + Solscan URL
+      ctx.push('/order-confirm', extra: orderResult);
+    } catch (e) {
+      if (ctx.mounted) {
+        Navigator.of(ctx, rootNavigator: true).pop();
+        ScaffoldMessenger.of(ctx).showSnackBar(
+          SnackBar(
+            content: Text('Checkout error: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
     }
   }
 }
