@@ -1,4 +1,4 @@
-import 'package:cached_network_image/cached_network_image.dart';
+﻿import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -112,7 +112,7 @@ class _ArtworkDetailScreenState extends State<ArtworkDetailScreen> {
     }
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.canvasOf(context),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -174,8 +174,8 @@ class _ArtworkDetailScreenState extends State<ArtworkDetailScreen> {
   }
 
   Widget _buildLoading() {
-    return const Scaffold(
-      backgroundColor: AppColors.background,
+    return Scaffold(
+      backgroundColor: AppColors.canvasOf(context),
       body: SafeArea(
         child: Padding(
           padding: EdgeInsets.all(24),
@@ -193,24 +193,24 @@ class _ArtworkDetailScreenState extends State<ArtworkDetailScreen> {
 
   Widget _buildError() {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.canvasOf(context),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(30),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.error_outline_rounded,
-                  color: AppColors.textTertiary, size: 54),
+              Icon(Icons.error_outline_rounded,
+                  color: AppColors.textTertiaryOf(context), size: 54),
               const SizedBox(height: 12),
-              const Text('Unable to open artwork',
+              Text('Unable to open artwork',
                   style: TextStyle(
-                      color: AppColors.textPrimary,
+                      color: AppColors.textPrimaryOf(context),
                       fontSize: 18,
                       fontWeight: FontWeight.w800)),
               const SizedBox(height: 6),
               Text(_error ?? 'Unknown error',
-                  style: const TextStyle(color: AppColors.textSecondary),
+                  style: TextStyle(color: AppColors.textSecondaryOf(context)),
                   textAlign: TextAlign.center),
               const SizedBox(height: 16),
               ElevatedButton(
@@ -247,20 +247,20 @@ class _DetailTopBar extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: AppColors.surfaceOf(context),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: AppColors.borderOf(context)),
             ),
-            child: const Icon(Icons.arrow_back_rounded,
-                color: AppColors.textPrimary),
+            child: Icon(Icons.arrow_back_rounded,
+                color: AppColors.textPrimaryOf(context)),
           ),
         ),
         const SizedBox(width: 12),
-        const Expanded(
+        Expanded(
           child: Text(
             'Artwork Detail',
             style: TextStyle(
-                color: AppColors.textPrimary,
+                color: AppColors.textPrimaryOf(context),
                 fontSize: 20,
                 fontWeight: FontWeight.w800),
           ),
@@ -271,9 +271,9 @@ class _DetailTopBar extends StatelessWidget {
           child: Ink(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: AppColors.surfaceOf(context),
               borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: AppColors.borderOf(context)),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -285,12 +285,12 @@ class _DetailTopBar extends StatelessWidget {
                   size: 18,
                   color: isLiked
                       ? const Color(0xFFFF5D7A)
-                      : AppColors.textSecondary,
+                      : AppColors.textSecondaryOf(context),
                 ),
                 const SizedBox(width: 6),
                 Text('$likesCount',
-                    style: const TextStyle(
-                        color: AppColors.textSecondary,
+                    style: TextStyle(
+                        color: AppColors.textSecondaryOf(context),
                         fontWeight: FontWeight.w700)),
               ],
             ),
@@ -314,7 +314,7 @@ class _MediaColumn extends StatelessWidget {
         Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.borderStrong),
+            border: Border.all(color: AppColors.borderStrongOf(context)),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.26),
@@ -334,11 +334,11 @@ class _MediaColumn extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: AppColors.surface,
+            color: AppColors.surfaceOf(context),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.border),
+            border: Border.all(color: AppColors.borderOf(context)),
           ),
-          child: const Row(
+          child: Row(
             children: [
               Icon(Icons.security_rounded, color: AppColors.success, size: 18),
               SizedBox(width: 8),
@@ -346,7 +346,7 @@ class _MediaColumn extends StatelessWidget {
                 child: Text(
                   'Authenticity-ready media with QR and NFC certificate pathways.',
                   style:
-                      TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                      TextStyle(color: AppColors.textSecondaryOf(context), fontSize: 12),
                 ),
               ),
             ],
@@ -379,8 +379,8 @@ class _DetailColumn extends StatelessWidget {
       children: [
         Text(
           painting.title,
-          style: const TextStyle(
-            color: AppColors.textPrimary,
+          style: TextStyle(
+            color: AppColors.textPrimaryOf(context),
             fontSize: 34,
             fontWeight: FontWeight.w900,
             height: 1.06,
@@ -418,7 +418,7 @@ class _DetailColumn extends StatelessWidget {
                     ),
                     child: Text(
                       '#$tag',
-                      style: const TextStyle(
+                      style: TextStyle(
                           color: AppColors.primary,
                           fontSize: 12,
                           fontWeight: FontWeight.w700),
@@ -448,23 +448,23 @@ class _ArtistIdentityCard extends StatelessWidget {
       child: Ink(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: AppColors.surfaceOf(context),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: AppColors.borderOf(context)),
         ),
         child: Row(
           children: [
             CircleAvatar(
               radius: 22,
-              backgroundColor: AppColors.surfaceVariant,
+              backgroundColor: AppColors.surfaceMutedOf(context),
               backgroundImage: painting.resolvedArtistAvatarUrl != null
                   ? CachedNetworkImageProvider(
                       painting.resolvedArtistAvatarUrl!,
                     )
                   : null,
               child: painting.resolvedArtistAvatarUrl == null
-                  ? const Icon(Icons.person_rounded,
-                      color: AppColors.textSecondary)
+                  ? Icon(Icons.person_rounded,
+                      color: AppColors.textSecondaryOf(context))
                   : null,
             ),
             const SizedBox(width: 10),
@@ -477,29 +477,29 @@ class _ArtistIdentityCard extends StatelessWidget {
                       Expanded(
                         child: Text(
                           painting.artistDisplayName ?? 'Artyug Artist',
-                          style: const TextStyle(
-                              color: AppColors.textPrimary,
+                          style: TextStyle(
+                              color: AppColors.textPrimaryOf(context),
                               fontSize: 14,
                               fontWeight: FontWeight.w700),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       if (painting.artistIsVerified ?? false)
-                        const Icon(Icons.verified_rounded,
+                        Icon(Icons.verified_rounded,
                             color: AppColors.info, size: 16),
                     ],
                   ),
                   const SizedBox(height: 4),
                   Text(
                     painting.artistType ?? 'Creator',
-                    style: const TextStyle(
-                        color: AppColors.textSecondary, fontSize: 12),
+                    style: TextStyle(
+                        color: AppColors.textSecondaryOf(context), fontSize: 12),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded,
-                color: AppColors.textTertiary),
+            Icon(Icons.chevron_right_rounded,
+                color: AppColors.textTertiaryOf(context)),
           ],
         ),
       ),
@@ -540,18 +540,18 @@ class _InfoChips extends StatelessWidget {
             (chip) => Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               decoration: BoxDecoration(
-                color: AppColors.surface,
+                color: AppColors.surfaceOf(context),
                 borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: AppColors.border),
+                border: Border.all(color: AppColors.borderOf(context)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(chip.$1, size: 14, color: AppColors.textSecondary),
+                  Icon(chip.$1, size: 14, color: AppColors.textSecondaryOf(context)),
                   const SizedBox(width: 6),
                   Text(chip.$2,
-                      style: const TextStyle(
-                          color: AppColors.textSecondary,
+                      style: TextStyle(
+                          color: AppColors.textSecondaryOf(context),
                           fontSize: 12,
                           fontWeight: FontWeight.w600)),
                 ],
@@ -574,9 +574,9 @@ class _ActionZone extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: AppColors.surfaceOf(context),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.borderStrong),
+        border: Border.all(color: AppColors.borderStrongOf(context)),
       ),
       child: Column(
         children: [
@@ -586,18 +586,18 @@ class _ActionZone extends StatelessWidget {
                 child: listingType == 'auction'
                     ? ElevatedButton.icon(
                         onPressed: () => _openAuction(context),
-                        icon: const Icon(Icons.gavel_rounded, size: 18),
+                        icon: Icon(Icons.gavel_rounded, size: 18),
                         label: const Text('Place Bid'),
                       )
                     : painting.isAvailable
                         ? ElevatedButton.icon(
                             onPressed: () => _openBuyIntent(context),
-                            icon: const Icon(Icons.shopping_bag_rounded, size: 18),
+                            icon: Icon(Icons.shopping_bag_rounded, size: 18),
                             label: Text('Buy for ${painting.displayPrice}'),
                           )
                         : OutlinedButton.icon(
                             onPressed: null,
-                            icon: const Icon(Icons.block_rounded, size: 18),
+                            icon: Icon(Icons.block_rounded, size: 18),
                             label: Text(painting.isSold ? 'Sold' : 'Not listed'),
                           ),
               ),
@@ -609,7 +609,7 @@ class _ActionZone extends StatelessWidget {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () => context.push('/authenticity-center'),
-                  icon: const Icon(Icons.verified_user_rounded, size: 18),
+                  icon: Icon(Icons.verified_user_rounded, size: 18),
                   label: const Text('Verify'),
                 ),
               ),
@@ -623,7 +623,7 @@ class _ActionZone extends StatelessWidget {
                     ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Artwork link copied')));
                   },
-                  icon: const Icon(Icons.share_rounded, size: 18),
+                  icon: Icon(Icons.share_rounded, size: 18),
                   label: const Text('Share'),
                 ),
               ),
@@ -668,7 +668,7 @@ class _ActionZone extends StatelessWidget {
     }
     final confirm = await showModalBottomSheet<bool>(
       context: context,
-      backgroundColor: AppColors.surface,
+      backgroundColor: AppColors.surfaceOf(context),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -678,14 +678,14 @@ class _ActionZone extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Confirm Purchase Intent',
-              style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.w800),
+              style: TextStyle(color: AppColors.textPrimaryOf(context), fontSize: 18, fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 8),
             Text(
               '${painting.title}\n${painting.displayPrice}',
-              style: const TextStyle(color: AppColors.textSecondary, height: 1.5),
+              style: TextStyle(color: AppColors.textSecondaryOf(context), height: 1.5),
             ),
             const SizedBox(height: 10),
             const Text(
@@ -757,16 +757,16 @@ class _DescriptionPanel extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: AppColors.surfaceOf(context),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: AppColors.borderOf(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('About this artwork',
+          Text('About this artwork',
               style: TextStyle(
-                  color: AppColors.textPrimary,
+                  color: AppColors.textPrimaryOf(context),
                   fontSize: 14,
                   fontWeight: FontWeight.w800)),
           const SizedBox(height: 8),
@@ -774,8 +774,8 @@ class _DescriptionPanel extends StatelessWidget {
             description!,
             maxLines: expanded ? null : 4,
             overflow: expanded ? TextOverflow.visible : TextOverflow.ellipsis,
-            style: const TextStyle(
-                color: AppColors.textSecondary, fontSize: 13, height: 1.55),
+            style: TextStyle(
+                color: AppColors.textSecondaryOf(context), fontSize: 13, height: 1.55),
           ),
           const SizedBox(height: 8),
           TextButton(
@@ -798,16 +798,16 @@ class _ProvenanceCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: AppColors.surfaceOf(context),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: AppColors.borderOf(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Provenance & Authenticity',
+          Text('Provenance & Authenticity',
               style: TextStyle(
-                  color: AppColors.textPrimary,
+                  color: AppColors.textPrimaryOf(context),
                   fontSize: 14,
                   fontWeight: FontWeight.w800)),
           const SizedBox(height: 10),
@@ -854,16 +854,16 @@ class _LineRow extends StatelessWidget {
           SizedBox(
             width: 110,
             child: Text(label,
-                style: const TextStyle(
-                    color: AppColors.textTertiary,
+                style: TextStyle(
+                    color: AppColors.textTertiaryOf(context),
                     fontSize: 12,
                     fontWeight: FontWeight.w600)),
           ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(value,
-                style: const TextStyle(
-                    color: AppColors.textSecondary,
+                style: TextStyle(
+                    color: AppColors.textSecondaryOf(context),
                     fontSize: 12,
                     fontWeight: FontWeight.w600)),
           ),
@@ -872,3 +872,4 @@ class _LineRow extends StatelessWidget {
     );
   }
 }
+

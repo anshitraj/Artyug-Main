@@ -7,7 +7,9 @@ import '../../core/theme/app_colors.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../providers/app_mode_provider.dart';
+import '../../providers/feed_view_mode_provider.dart';
 import '../../widgets/onboarding_guide.dart';
+import '../../widgets/premium_action_sheet.dart';
 import '../../core/config/app_config.dart';
 
 // ignore: unused_import
@@ -44,33 +46,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _handleSignOut() async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await PremiumActionSheet.showConfirm(
       context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Sign Out',
-            style: TextStyle(
-                color: AppColors.textPrimary, fontWeight: FontWeight.w800)),
-        content: const Text('Are you sure you want to sign out?',
-            style: TextStyle(color: AppColors.textSecondary)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel',
-                style: TextStyle(color: AppColors.textSecondary)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Sign Out',
-                style: TextStyle(
-                    color: AppColors.error, fontWeight: FontWeight.w700)),
-          ),
-        ],
-      ),
+      title: 'Leave Artyug?',
+      subtitle: 'You can return to your studio anytime.',
+      confirmLabel: 'Sign out',
     );
 
-    if (confirmed == true) {
+    if (confirmed) {
       setState(() => _loading = true);
       try {
         await Provider.of<AuthProvider>(context, listen: false).signOut();
@@ -235,6 +218,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       : 'Using real Supabase + payments',
                   value: modeProvider.isLiveMode,
                   onChanged: (v) => modeProvider.setMode(v ? AppMode.live : AppMode.demo),
+                );
+              }),
+              Builder(builder: (ctx) {
+                final vm = ctx.watch<FeedViewModeProvider>();
+                return _SwitchTile(
+                  icon: Icons.tune_rounded,
+                  label: 'Pro Experience',
+                  subtitle: vm.isProMode
+                      ? 'All features enabled'
+                      : 'Lite mode enabled',
+                  value: vm.isProMode,
+                  onChanged: vm.setProMode,
                 );
               }),
               _SettingsTile(

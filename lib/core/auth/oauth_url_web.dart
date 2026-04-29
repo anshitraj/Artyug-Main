@@ -8,12 +8,14 @@ Uri oauthBrowserUri() => Uri.parse(web.window.location.href);
 void oauthStripQueryParamsIfOAuthPresent() {
   final uri = Uri.parse(web.window.location.href);
   final q = uri.queryParameters;
+  final hasTokenFragment = uri.fragment.contains('access_token=');
   if (!q.containsKey('code') &&
       !q.containsKey('error') &&
-      !q.containsKey('error_description')) {
+      !q.containsKey('error_description') &&
+      !hasTokenFragment) {
     return;
   }
-  final clean = uri.replace(queryParameters: const {});
+  final clean = uri.replace(queryParameters: const {}, fragment: '');
   web.window.history.replaceState(null, '', clean.toString());
 }
 

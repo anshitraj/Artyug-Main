@@ -1,5 +1,5 @@
-/// My Galleries — manage galleries (maps to DB `shops` table).
-/// Free creators: max 2 galleries. Premium: unlimited.
+/// My Studios — manage studios (maps to DB `shops` table).
+/// Free creators: max 2 studios. Premium: unlimited.
 library;
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -20,7 +20,7 @@ class MyGalleriesScreen extends StatefulWidget {
 
 class _MyGalleriesScreenState extends State<MyGalleriesScreen> {
   final _client = Supabase.instance.client;
-  List<Map<String, dynamic>> _galleries = [];
+  List<Map<String, dynamic>> _studios = [];
   bool _loading = true;
   String _plan = 'free';
 
@@ -46,13 +46,13 @@ class _MyGalleriesScreenState extends State<MyGalleriesScreen> {
           .maybeSingle();
       _plan = (profile?['plan'] as String?) ?? 'free';
 
-      // Fetch galleries
+      // Fetch studios
       final data = await _client
           .from('shops')
           .select('id, name, description, avatar_url, banner_url, is_active, created_at')
           .eq('owner_id', uid)
           .order('created_at', ascending: false);
-      _galleries = List<Map<String, dynamic>>.from(data as List);
+      _studios = List<Map<String, dynamic>>.from(data as List);
     } catch (e) {
       debugPrint('[MyGalleries] load error: $e');
     }
@@ -60,7 +60,7 @@ class _MyGalleriesScreenState extends State<MyGalleriesScreen> {
   }
 
   bool get _canCreateMore =>
-      _plan == 'premium' || _galleries.length < _kFreeGalleryLimit;
+      _plan == 'premium' || _studios.length < _kFreeGalleryLimit;
 
   void _createGallery() {
     if (_canCreateMore) {
@@ -104,8 +104,8 @@ class _MyGalleriesScreenState extends State<MyGalleriesScreen> {
               ),
               const SizedBox(height: 10),
               const Text(
-                'Free creators can manage up to 2 galleries.\n'
-                'Upgrade to Creator Pro to unlock unlimited galleries, '
+                'Free creators can manage up to 2 studios.\n'
+                'Upgrade to Creator Pro to unlock unlimited studios, '
                 'a verified badge, priority marketplace listing, and more.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
@@ -117,11 +117,11 @@ class _MyGalleriesScreenState extends State<MyGalleriesScreen> {
               const SizedBox(height: 8),
               // Feature highlights
               ...[
-                ('Unlimited galleries', Icons.collections_rounded),
+                ('Unlimited studios', Icons.collections_rounded),
                 ('Verified creator badge', Icons.verified_rounded),
                 ('Priority marketplace listing', Icons.trending_up_rounded),
                 ('Advanced analytics', Icons.insights_rounded),
-                ('Custom gallery covers', Icons.image_rounded),
+                ('Custom studio covers', Icons.image_rounded),
                 ('Early access to auctions', Icons.gavel_rounded),
               ].map((f) => Padding(
                     padding: const EdgeInsets.symmetric(vertical: 3),
@@ -198,12 +198,12 @@ class _MyGalleriesScreenState extends State<MyGalleriesScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Delete Gallery',
+        title: const Text('Delete studio',
             style: TextStyle(color: AppColors.textPrimary,
                 fontWeight: FontWeight.w800)),
         content: Text(
           'Are you sure you want to delete "$name"?\n\n'
-          'This will remove the gallery but your artworks will remain in your account.',
+          'This will remove the studio but your artworks will remain in your account.',
           style: const TextStyle(color: AppColors.textSecondary, height: 1.4),
         ),
         actions: [
@@ -227,7 +227,7 @@ class _MyGalleriesScreenState extends State<MyGalleriesScreen> {
       await _load();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Gallery deleted'),
+          const SnackBar(content: Text('studio deleted'),
               backgroundColor: AppColors.success),
         );
       }
@@ -255,7 +255,7 @@ class _MyGalleriesScreenState extends State<MyGalleriesScreen> {
               color: AppColors.textPrimary, size: 18),
         ),
         title: const Text(
-          'My Galleries',
+          'My Studios',
           style: TextStyle(
             color: AppColors.textPrimary,
             fontSize: 20,
@@ -299,7 +299,7 @@ class _MyGalleriesScreenState extends State<MyGalleriesScreen> {
         foregroundColor: Colors.white,
         elevation: 4,
         icon: const Icon(Icons.add_rounded, size: 22),
-        label: const Text('New Gallery',
+        label: const Text('New studio',
             style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
@@ -310,9 +310,9 @@ class _MyGalleriesScreenState extends State<MyGalleriesScreen> {
               onRefresh: _load,
               color: AppColors.primary,
               backgroundColor: AppColors.surface,
-              child: _galleries.isEmpty
+              child: _studios.isEmpty
                   ? _buildEmptyState()
-                  : _buildGalleryList(),
+                  : _buildstudioList(),
             ),
     );
   }
@@ -342,7 +342,7 @@ class _MyGalleriesScreenState extends State<MyGalleriesScreen> {
               ),
               const SizedBox(height: 20),
               const Text(
-                'No galleries yet',
+                'No studios yet',
                 style: TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: 20,
@@ -351,7 +351,7 @@ class _MyGalleriesScreenState extends State<MyGalleriesScreen> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Create your first gallery to start listing\n'
+                'Create your first studio to start listing\n'
                 'artworks for sale in the marketplace.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
@@ -367,7 +367,7 @@ class _MyGalleriesScreenState extends State<MyGalleriesScreen> {
                 child: ElevatedButton.icon(
                   onPressed: () => context.push('/create-gallery'),
                   icon: const Icon(Icons.add_rounded, size: 20),
-                  label: const Text('Create Gallery',
+                  label: const Text('Create studio',
                       style: TextStyle(
                           fontWeight: FontWeight.w800, fontSize: 15)),
                   style: ElevatedButton.styleFrom(
@@ -385,23 +385,23 @@ class _MyGalleriesScreenState extends State<MyGalleriesScreen> {
     );
   }
 
-  Widget _buildGalleryList() {
+  Widget _buildstudioList() {
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-      itemCount: _galleries.length + 1, // +1 for the limit card at bottom
+      itemCount: _studios.length + 1, // +1 for the limit card at bottom
       itemBuilder: (context, index) {
-        if (index == _galleries.length) {
+        if (index == _studios.length) {
           return _buildLimitInfo();
         }
-        return _GalleryCard(
-          gallery: _galleries[index],
+        return _studioCard(
+          studio: _studios[index],
           onToggle: () => _toggleGallery(
-            _galleries[index]['id'] as String,
-            _galleries[index]['is_active'] as bool? ?? true,
+            _studios[index]['id'] as String,
+            _studios[index]['is_active'] as bool? ?? true,
           ),
           onDelete: () => _deleteGallery(
-            _galleries[index]['id'] as String,
-            _galleries[index]['name'] as String? ?? 'Gallery',
+            _studios[index]['id'] as String,
+            _studios[index]['name'] as String? ?? 'studio',
           ),
         );
       },
@@ -409,7 +409,7 @@ class _MyGalleriesScreenState extends State<MyGalleriesScreen> {
   }
 
   Widget _buildLimitInfo() {
-    final used = _galleries.length;
+    final used = _studios.length;
     final limit = _plan == 'premium' ? '∞' : '$_kFreeGalleryLimit';
     return Padding(
       padding: const EdgeInsets.only(top: 16, bottom: 16),
@@ -432,7 +432,7 @@ class _MyGalleriesScreenState extends State<MyGalleriesScreen> {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                '$used of $limit galleries used',
+                '$used of $limit studios used',
                 style: const TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 13,
@@ -459,24 +459,24 @@ class _MyGalleriesScreenState extends State<MyGalleriesScreen> {
   }
 }
 
-class _GalleryCard extends StatelessWidget {
-  final Map<String, dynamic> gallery;
+class _studioCard extends StatelessWidget {
+  final Map<String, dynamic> studio;
   final VoidCallback onToggle;
   final VoidCallback onDelete;
 
-  const _GalleryCard({
-    required this.gallery,
+  const _studioCard({
+    required this.studio,
     required this.onToggle,
     required this.onDelete,
   });
 
   @override
   Widget build(BuildContext context) {
-    final name = gallery['name'] as String? ?? 'Untitled Gallery';
-    final desc = gallery['description'] as String?;
-    final avatarUrl = gallery['avatar_url'] as String?;
-    final bannerUrl = gallery['banner_url'] as String?;
-    final isActive = gallery['is_active'] as bool? ?? true;
+    final name = studio['name'] as String? ?? 'Untitled studio';
+    final desc = studio['description'] as String?;
+    final avatarUrl = studio['avatar_url'] as String?;
+    final bannerUrl = studio['banner_url'] as String?;
+    final isActive = studio['is_active'] as bool? ?? true;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -711,3 +711,5 @@ class _ActionChip extends StatelessWidget {
     );
   }
 }
+
+

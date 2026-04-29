@@ -1,5 +1,4 @@
 ﻿import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -60,8 +59,7 @@ class _GallerySelectorSheetState extends State<GallerySelectorSheet> {
   }
 
   void _openCreate() {
-    Navigator.pop(context);
-    context.push('/create-gallery');
+    Navigator.pop(context, {'__action': 'create_studio'});
   }
 
   @override

@@ -1,11 +1,12 @@
-import 'dart:ui';
+﻿import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../core/config/canonical_guilds.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/utils/supabase_media_url.dart';
 import '../../providers/auth_provider.dart';
 
 class MessagesScreen extends StatefulWidget {
@@ -29,6 +30,12 @@ class _MessagesScreenState extends State<MessagesScreen> {
     _setupRealtimeSubscription();
   }
 
+  @override
+  void dispose() {
+    _subscription?.unsubscribe();
+    super.dispose();
+  }
+
   Future<void> _refreshAll() async {
     await Future.wait([_fetchOfficialGuilds(), _fetchConversations()]);
   }
@@ -36,16 +43,17 @@ class _MessagesScreenState extends State<MessagesScreen> {
   Future<void> _fetchOfficialGuilds() async {
     try {
       final list = await CanonicalGuilds.fetchOfficialCommunities(_supabase);
-      if (mounted) setState(() => _officialGuilds = list);
+      final seen = <String>{};
+      final deduped = <Map<String, dynamic>>[];
+      for (final row in list) {
+        final id = (row['id'] ?? '').toString();
+        final key = id.isNotEmpty ? id : (row['name'] ?? '').toString().toLowerCase();
+        if (seen.add(key)) deduped.add(row);
+      }
+      if (mounted) setState(() => _officialGuilds = deduped);
     } catch (_) {
       if (mounted) setState(() => _officialGuilds = []);
     }
-  }
-
-  @override
-  void dispose() {
-    _subscription?.unsubscribe();
-    super.dispose();
   }
 
   Future<void> _fetchConversations() async {
@@ -54,6 +62,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
     try {
       final user = Provider.of<AuthProvider>(context, listen: false).user;
       if (user == null) {
+        if (!mounted) return;
         setState(() {
           _conversations = [];
           _loading = false;
@@ -61,7 +70,6 @@ class _MessagesScreenState extends State<MessagesScreen> {
         return;
       }
 
-      // Fetch all conversations where user is a participant
       final response = await _supabase
           .from('conversations')
           .select('*')
@@ -69,6 +77,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
           .order('updated_at', ascending: false);
 
       if (response.isEmpty) {
+        if (!mounted) return;
         setState(() {
           _conversations = [];
           _loading = false;
@@ -78,29 +87,22 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
       final conversationsData = List<Map<String, dynamic>>.from(response);
 
-      // Get all participant IDs
       final participantIds = <String>{};
-      for (var conv in conversationsData) {
-        if (conv['participant1_id'] != null) {
-          participantIds.add(conv['participant1_id'] as String);
-        }
-        if (conv['participant2_id'] != null) {
-          participantIds.add(conv['participant2_id'] as String);
-        }
+      for (final conv in conversationsData) {
+        if (conv['participant1_id'] != null) participantIds.add(conv['participant1_id'] as String);
+        if (conv['participant2_id'] != null) participantIds.add(conv['participant2_id'] as String);
       }
-      participantIds.remove(user.id); // Remove current user
+      participantIds.remove(user.id);
 
-      // Fetch profiles for all participants
       final profilesResponse = await _supabase
           .from('profiles')
           .select('id, username, display_name, profile_picture_url')
           .inFilter('id', participantIds.toList());
 
       final profilesData = List<Map<String, dynamic>>.from(profilesResponse);
-      final profilesMap = {for (var p in profilesData) p['id']: p};
+      final profilesMap = {for (final p in profilesData) p['id']: p};
 
-      // Get last message and unread count for each conversation
-      final conversationsWithDetails = await Future.wait(
+      final withDetails = await Future.wait(
         conversationsData.map((conversation) async {
           final otherUserId = conversation['participant1_id'] == user.id
               ? conversation['participant2_id'] as String
@@ -108,7 +110,6 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
           final otherUser = profilesMap[otherUserId] ?? {};
 
-          // Get last message
           final lastMessageResponse = await _supabase
               .from('messages')
               .select('*')
@@ -117,7 +118,6 @@ class _MessagesScreenState extends State<MessagesScreen> {
               .limit(1)
               .maybeSingle();
 
-          // Get unread count
           final unreadResponse = await _supabase
               .from('messages')
               .select('id')
@@ -137,11 +137,13 @@ class _MessagesScreenState extends State<MessagesScreen> {
         }),
       );
 
+      if (!mounted) return;
       setState(() {
-        _conversations = conversationsWithDetails;
+        _conversations = withDetails;
         _loading = false;
       });
-    } catch (e) {
+    } catch (_) {
+      if (!mounted) return;
       setState(() {
         _conversations = [];
         _loading = false;
@@ -159,10 +161,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'messages',
-          callback: (payload) {
-            // Refresh conversations when new messages arrive
-            _fetchConversations();
-          },
+          callback: (_) => _fetchConversations(),
         )
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
@@ -173,10 +172,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
             column: 'participant1_id',
             value: user.id,
           ),
-          callback: (payload) {
-            // Refresh conversations when conversations are updated
-            _fetchConversations();
-          },
+          callback: (_) => _fetchConversations(),
         )
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
@@ -187,10 +183,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
             column: 'participant2_id',
             value: user.id,
           ),
-          callback: (payload) {
-            // Refresh conversations when conversations are updated
-            _refreshAll();
-          },
+          callback: (_) => _refreshAll(),
         )
         .subscribe();
   }
@@ -205,78 +198,59 @@ class _MessagesScreenState extends State<MessagesScreen> {
     }
   }
 
-  Widget _glassContainer({
-    required Widget child,
-    double radius = 18,
-    EdgeInsets padding = const EdgeInsets.all(16),
-  }) {
+  Widget _surfaceCard(BuildContext context, Widget child, {EdgeInsets padding = const EdgeInsets.all(14)}) {
     return Container(
+      padding: padding,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(radius),
-        border: Border.all(
-          color: Colors.purpleAccent.withOpacity(0.3),
-          width: 1.3,
-        ),
-        gradient: LinearGradient(
-          colors: [
-            Colors.white.withOpacity(0.06),
-            Colors.white.withOpacity(0.02),
-          ],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.purpleAccent.withOpacity(0.25),
-            blurRadius: 10,
-            spreadRadius: 1,
-          ),
-        ],
+        color: AppColors.surfaceOf(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.borderOf(context)),
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(radius),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-          child: Padding(padding: padding, child: child),
-        ),
-      ),
+      child: child,
     );
   }
 
   Widget _buildGuildChannelCard(Map<String, dynamic> community) {
     final name = community['name'] as String? ?? 'Guild';
-    final id = community['id'] as String;
+    final id = (community['id'] ?? '').toString();
     final n = Uri.encodeComponent(name);
+    final avatarRaw = (community['avatar_url'] as String?)?.trim();
+    final avatar = SupabaseMediaUrl.resolve(avatarRaw);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: _glassContainer(
-        padding: const EdgeInsets.all(14),
-        child: Material(
+      child: _surfaceCard(
+        context,
+        Material(
           color: Colors.transparent,
           child: InkWell(
-            onTap: () => context.push('/community-chat/$id?name=$n'),
-            borderRadius: BorderRadius.circular(18),
+            onTap: id.isEmpty ? null : () => context.push('/community-chat/$id?name=$n'),
+            borderRadius: BorderRadius.circular(14),
             child: Row(
               children: [
                 CircleAvatar(
                   radius: 24,
-                  backgroundColor: Colors.deepPurpleAccent,
-                  child: Text(
-                    name.isNotEmpty ? name[0].toUpperCase() : 'G',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  backgroundColor: AppColors.accentSoftOf(context),
+                  backgroundImage: avatar.isNotEmpty ? CachedNetworkImageProvider(avatar) : null,
+                  child: avatar.isNotEmpty
+                      ? null
+                      : Text(
+                          name.isNotEmpty ? name[0].toUpperCase() : 'G',
+                          style: TextStyle(
+                            color: AppColors.accentOf(context),
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         '$name — main',
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: AppColors.textPrimaryOf(context),
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
                         ),
@@ -287,14 +261,14 @@ class _MessagesScreenState extends State<MessagesScreen> {
                       Text(
                         'Guild chat · history for all members',
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.6),
+                          color: AppColors.textSecondaryOf(context),
                           fontSize: 13,
                         ),
                       ),
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_right, color: Colors.white54),
+                Icon(Icons.chevron_right, color: AppColors.textTertiaryOf(context)),
               ],
             ),
           ),
@@ -309,42 +283,37 @@ class _MessagesScreenState extends State<MessagesScreen> {
     final unreadCount = conversation['unread_count'] as int? ?? 0;
     final otherUserId = conversation['other_user_id'] as String?;
 
-    final otherUserName =
-        otherUser['display_name'] ?? otherUser['username'] ?? 'Unknown';
-    final profilePictureUrl = otherUser['profile_picture_url'];
+    final otherUserName = (otherUser['display_name'] ?? otherUser['username'] ?? 'Unknown').toString();
+    final rawProfilePicture = (otherUser['profile_picture_url'] as String?)?.trim();
+    final profilePictureUrl = SupabaseMediaUrl.resolve(rawProfilePicture);
 
-    final lastMessageContent = lastMessage?['content'] as String? ?? '';
+    final lastMessageContent = (lastMessage?['content'] as String? ?? '').trim();
     final lastMessageTime = lastMessage?['created_at'] as String?;
 
-    return _glassContainer(
-      padding: const EdgeInsets.all(16),
-      child: Material(
+    return _surfaceCard(
+      context,
+      Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: () {
-            if (otherUserId != null) {
-              context.push('/chat/$otherUserId');
-            }
+            if (otherUserId != null) context.push('/chat/$otherUserId');
           },
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(14),
           child: Row(
             children: [
-              // Profile Picture
               Stack(
                 children: [
                   CircleAvatar(
-                    radius: 28,
-                    backgroundColor: Colors.purpleAccent,
-                    backgroundImage: profilePictureUrl != null
-                        ? CachedNetworkImageProvider(profilePictureUrl)
-                        : null,
-                    child: profilePictureUrl == null
+                    radius: 26,
+                    backgroundColor: AppColors.accentSoftOf(context),
+                    backgroundImage: profilePictureUrl.isNotEmpty ? CachedNetworkImageProvider(profilePictureUrl) : null,
+                    child: profilePictureUrl.isEmpty
                         ? Text(
-                            otherUserName[0].toUpperCase(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
+                            otherUserName.isNotEmpty ? otherUserName[0].toUpperCase() : 'U',
+                            style: TextStyle(
+                              color: AppColors.accentOf(context),
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
                             ),
                           )
                         : null,
@@ -354,30 +323,18 @@ class _MessagesScreenState extends State<MessagesScreen> {
                       right: 0,
                       bottom: 0,
                       child: Container(
-                        padding: const EdgeInsets.all(4),
+                        width: 10,
+                        height: 10,
                         decoration: BoxDecoration(
-                          color: Colors.greenAccent,
+                          color: AppColors.success,
                           shape: BoxShape.circle,
-                          border: Border.all(
-                            color: const Color(0xFF24243e),
-                            width: 2,
-                          ),
-                        ),
-                        constraints: const BoxConstraints(
-                          minWidth: 16,
-                          minHeight: 16,
-                        ),
-                        child: const SizedBox(
-                          width: 8,
-                          height: 8,
+                          border: Border.all(color: AppColors.surfaceOf(context), width: 2),
                         ),
                       ),
                     ),
                 ],
               ),
-              const SizedBox(width: 16),
-
-              // Message Info
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -388,11 +345,9 @@ class _MessagesScreenState extends State<MessagesScreen> {
                           child: Text(
                             otherUserName,
                             style: TextStyle(
-                              color: Colors.white,
+                              color: AppColors.textPrimaryOf(context),
                               fontSize: 16,
-                              fontWeight: unreadCount > 0
-                                  ? FontWeight.bold
-                                  : FontWeight.w600,
+                              fontWeight: unreadCount > 0 ? FontWeight.w800 : FontWeight.w700,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -402,30 +357,23 @@ class _MessagesScreenState extends State<MessagesScreen> {
                           Text(
                             _formatTime(lastMessageTime),
                             style: TextStyle(
-                              color: Colors.white54,
+                              color: AppColors.textTertiaryOf(context),
                               fontSize: 12,
                             ),
                           ),
                       ],
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     Row(
                       children: [
                         Expanded(
                           child: Text(
-                            lastMessageContent.isNotEmpty
-                                ? lastMessageContent
-                                : 'No messages yet',
+                            lastMessageContent.isNotEmpty ? lastMessageContent : 'No messages yet',
                             style: TextStyle(
-                              color: lastMessageContent.isNotEmpty
-                                  ? (unreadCount > 0
-                                      ? Colors.white
-                                      : Colors.white70)
-                                  : Colors.white54,
-                              fontSize: 14,
-                              fontWeight: unreadCount > 0
-                                  ? FontWeight.w500
-                                  : FontWeight.normal,
+                              color: unreadCount > 0
+                                  ? AppColors.textPrimaryOf(context)
+                                  : AppColors.textSecondaryOf(context),
+                              fontSize: 13.5,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -434,20 +382,17 @@ class _MessagesScreenState extends State<MessagesScreen> {
                         if (unreadCount > 0) ...[
                           const SizedBox(width: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
-                              color: Colors.purpleAccent,
-                              borderRadius: BorderRadius.circular(12),
+                              color: AppColors.accentOf(context),
+                              borderRadius: BorderRadius.circular(999),
                             ),
                             child: Text(
                               unreadCount > 99 ? '99+' : '$unreadCount',
                               style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
+                                color: AppColors.onPrimary,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
                           ),
@@ -461,162 +406,141 @@ class _MessagesScreenState extends State<MessagesScreen> {
           ),
         ),
       ),
+      padding: const EdgeInsets.all(14),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: AppColors.canvasOf(context),
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: Colors.black.withOpacity(0.4),
-        title: const Text(
+        backgroundColor: AppColors.canvasOf(context),
+        surfaceTintColor: Colors.transparent,
+        title: Text(
           'Messages',
           style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 1.2,
+            color: AppColors.textPrimaryOf(context),
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.4,
           ),
         ),
         centerTitle: true,
       ),
-      body: Stack(
-        children: [
-          // Background Gradient
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Color(0xFF0f0c29),
-                  Color(0xFF302b63),
-                  Color(0xFF24243e),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-          ),
-
-          // Content
-          if (_loading)
-            const Center(
-              child: CircularProgressIndicator(color: Colors.purpleAccent),
+      body: _loading
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.primary),
             )
-          else if (_conversations.isEmpty && _officialGuilds.isEmpty)
-            Center(
-              child: _glassContainer(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.chat_bubble_outline,
-                      size: 64,
-                      color: Colors.white54,
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'No conversations yet',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Start chatting with other artists!',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 14,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
-            )
-          else
-            RefreshIndicator(
-              onRefresh: _refreshAll,
-              color: Colors.purpleAccent,
-              child: CustomScrollView(
-                slivers: [
-                  if (_officialGuilds.isNotEmpty)
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Guild channels',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Main chat for each official guild (same as Artyug-main).',
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.55),
-                                fontSize: 12,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            ..._officialGuilds.map(_buildGuildChannelCard),
-                          ],
-                        ),
-                      ),
-                    ),
-                  if (_conversations.isNotEmpty)
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                        child: Text(
-                          'Direct messages',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.9),
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
+          : (_conversations.isEmpty && _officialGuilds.isEmpty)
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: _surfaceCard(
+                      context,
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.chat_bubble_outline,
+                            size: 58,
+                            color: AppColors.textTertiaryOf(context),
                           ),
-                        ),
-                      ),
-                    ),
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                    sliver: SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) {
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: _buildConversationCard(_conversations[index]),
-                          );
-                        },
-                        childCount: _conversations.length,
+                          const SizedBox(height: 12),
+                          Text(
+                            'No conversations yet',
+                            style: TextStyle(
+                              color: AppColors.textPrimaryOf(context),
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Start chatting with creators and collectors.',
+                            style: TextStyle(
+                              color: AppColors.textSecondaryOf(context),
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                  if (_conversations.isEmpty && _officialGuilds.isNotEmpty)
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Text(
-                          'No direct messages yet — open a profile to start a private chat.',
-                          style: TextStyle(color: Colors.white.withOpacity(0.5)),
-                          textAlign: TextAlign.center,
+                )
+              : RefreshIndicator(
+                  onRefresh: _refreshAll,
+                  color: AppColors.primary,
+                  child: CustomScrollView(
+                    slivers: [
+                      if (_officialGuilds.isNotEmpty)
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Guild channels',
+                                  style: TextStyle(
+                                    color: AppColors.textPrimaryOf(context),
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Main chat for each official guild.',
+                                  style: TextStyle(
+                                    color: AppColors.textSecondaryOf(context),
+                                    fontSize: 12.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                ..._officialGuilds.map(_buildGuildChannelCard),
+                              ],
+                            ),
+                          ),
+                        ),
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+                          child: Text(
+                            'Direct messages',
+                            style: TextStyle(
+                              color: AppColors.textPrimaryOf(context),
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                ],
-              ),
-            ),
-        ],
-      ),
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                        sliver: SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                            (context, index) => Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: _buildConversationCard(_conversations[index]),
+                            ),
+                            childCount: _conversations.length,
+                          ),
+                        ),
+                      ),
+                      if (_conversations.isEmpty && _officialGuilds.isNotEmpty)
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                            child: Text(
+                              'No direct messages yet — open a profile to start a private chat.',
+                              style: TextStyle(color: AppColors.textSecondaryOf(context)),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
     );
   }
 }
-
-

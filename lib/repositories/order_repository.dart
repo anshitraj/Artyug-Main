@@ -77,8 +77,6 @@ class OrderRepository {
     final orderId = _uuid.v4();
     final certId = _uuid.v4();
     final qrCode = 'QR-${_randomAlphanumeric(10)}';
-    final syntheticHash =
-        '0x${List.generate(32, (_) => Random().nextInt(256).toRadixString(16).padLeft(2, '0')).join()}';
 
     // Insert order
     await _client.from('orders').insert({
@@ -102,7 +100,7 @@ class OrderRepository {
     });
 
     // Optional Solana memo attestation (devnet or mainnet — see AppConfig.chainMode)
-    String blockchainHash = syntheticHash;
+    String? blockchainHash;
     String? solanaExplorerUrl;
 
     if (AppConfig.isSolanaReady) {
@@ -141,7 +139,7 @@ class OrderRepository {
       'owner_id': user.id,
       'owner_name': buyerName,
       'purchase_date': DateTime.now().toIso8601String(),
-      'blockchain_hash': blockchainHash,
+      if (blockchainHash != null) 'blockchain_hash': blockchainHash,
       'qr_code': qrCode,
       'nfc_enabled': AppConfig.nfcEnabled,
       'current_market_price': (painting.price ?? 0) * 1.15,

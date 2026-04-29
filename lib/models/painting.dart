@@ -87,11 +87,21 @@ class PaintingModel {
   });
 
   factory PaintingModel.fromJson(Map<String, dynamic> json) {
+    String? firstNonEmpty(List<String> keys) {
+      for (final key in keys) {
+        final raw = json[key];
+        if (raw is String && raw.trim().isNotEmpty) return raw.trim();
+      }
+      return null;
+    }
+
     return PaintingModel(
       id: json['id'] as String,
       artistId: json['artist_id'] as String,
       title: json['title'] as String,
-      description: json['description'] as String?,
+      description: firstNonEmpty(
+        const ['description', 'caption', 'content', 'about', 'post_text'],
+      ),
       medium: json['medium'] as String?,
       dimensions: json['dimensions'] as String?,
       imageUrl: (json['image_url'] as String?)?.trim() ?? '',
@@ -132,10 +142,12 @@ class PaintingModel {
           ? DateTime.tryParse(json['created_at'] as String)
           : null,
       // Joined profile fields
-      artistDisplayName: json['display_name'] as String? ??
-          json['artist_display_name'] as String?,
-      artistProfilePictureUrl: json['profile_picture_url'] as String? ??
-          json['artist_profile_picture_url'] as String?,
+      artistDisplayName: firstNonEmpty(
+        const ['display_name', 'artist_display_name', 'username'],
+      ),
+      artistProfilePictureUrl: firstNonEmpty(
+        const ['profile_picture_url', 'artist_profile_picture_url', 'avatar_url'],
+      ),
       artistIsVerified: (json['artist_is_verified'] as bool?) ??
           (json['artist_verified'] as bool?),
       artistType: json['artist_type'] as String?,

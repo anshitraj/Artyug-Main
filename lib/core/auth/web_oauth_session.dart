@@ -9,7 +9,11 @@ Future<void> finalizeWebOAuthSessionIfNeeded() async {
   if (!kIsWeb) return;
   debugLogOAuthUri();
   final location = oauthBrowserUri();
-  if (!location.queryParameters.containsKey('code')) return;
+  final hasCode = location.queryParameters.containsKey('code');
+  final hasTokenFragment = location.fragment.contains('access_token=');
+  final hasError = location.queryParameters.containsKey('error') ||
+      location.queryParameters.containsKey('error_description');
+  if (!hasCode && !hasTokenFragment && !hasError) return;
 
   final auth = Supabase.instance.client.auth;
   if (auth.currentSession != null) {

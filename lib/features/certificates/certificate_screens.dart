@@ -356,7 +356,7 @@ class _CertificateSquareTile extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                         const Spacer(),
-                        if (cert.txHash != null)
+                        if (_isRealSolanaTxHash(cert.txHash))
                           Row(
                             children: [
                               Container(
@@ -392,7 +392,7 @@ class _CertificateSquareTile extends StatelessWidget {
                           )
                         else
                           Text(
-                            'Tap for details',
+                            'Proof pending',
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
@@ -605,6 +605,14 @@ class CertificateDetailScreen extends StatelessWidget {
   }
 }
 
+bool _isRealSolanaTxHash(String? hash) {
+  final h = hash?.trim();
+  if (h == null || h.isEmpty) return false;
+  if (h.startsWith('0x')) return false; // synthetic fallback hash
+  final isBase58 = RegExp(r'^[1-9A-HJ-NP-Za-km-z]{43,128}$').hasMatch(h);
+  return isBase58;
+}
+
 class _CertificateCard2 extends StatelessWidget {
   final CertificateModel cert;
   const _CertificateCard2({required this.cert});
@@ -623,7 +631,7 @@ class _CertificateCard2 extends StatelessWidget {
       children: [
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           RichText(text: const TextSpan(children: [
-            TextSpan(text: 'ARTYUG', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 0.5)),
+            TextSpan(text: 'ARTYUG', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: _onLight, letterSpacing: 0.5)),
             TextSpan(text: '.', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: AppColors.primary)),
           ])),
           Container(
@@ -646,7 +654,7 @@ class _CertificateCard2 extends StatelessWidget {
         )),
         const SizedBox(height: 6),
         Text(cert.artworkTitle, style: const TextStyle(
-          fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white, height: 1.2,
+          fontSize: 22, fontWeight: FontWeight.w900, color: _onLight, height: 1.2,
         )),
         const SizedBox(height: 20),
         _CertRow('Created by', cert.creatorName),
@@ -670,7 +678,7 @@ class _CertRow extends StatelessWidget {
     mainAxisAlignment: MainAxisAlignment.spaceBetween,
     children: [
       Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-      Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
+      Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _onLight)),
     ],
   );
 }
@@ -729,6 +737,8 @@ class _BlockchainSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final chainMode = AppConfig.isDemoMode ? 'DEVNET' : AppConfig.chainMode.name.toUpperCase();
     final solanaEnabled = AppConfig.solanaEnabled;
+    final hasRealProof = _isRealSolanaTxHash(cert.txHash);
+    final solanaBlockReason = AppConfig.solanaBlockReason;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -758,8 +768,8 @@ class _BlockchainSection extends StatelessWidget {
           ]),
           const SizedBox(height: 16),
           if (!solanaEnabled) ...[
-            _BlockedChip('Blockchain anchoring is disabled'),
-          ] else if (cert.txHash != null) ...[
+            _BlockedChip(solanaBlockReason ?? 'Blockchain anchoring is disabled'),
+          ] else if (hasRealProof) ...[
             _BlockchainRow('Network', 'Solana ${chainMode.toLowerCase()}'),
             const SizedBox(height: 10),
             _BlockchainRow('Status', 'Confirmed'),
@@ -785,7 +795,7 @@ class _BlockchainSection extends StatelessWidget {
                 final base = AppConfig.isDemoMode
                     ? 'https://explorer.solana.com/tx'
                     : 'https://explorer.solana.com/tx';
-                final url = '$base/${cert.txHash}?cluster=${chainMode.toLowerCase()}';
+                final url = '$base/${cert.txHash!}?cluster=${chainMode.toLowerCase()}';
                 Clipboard.setData(ClipboardData(text: url));
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Explorer URL copied')));
               },
@@ -794,7 +804,11 @@ class _BlockchainSection extends StatelessWidget {
               style: OutlinedButton.styleFrom(foregroundColor: AppColors.primary, side: const BorderSide(color: AppColors.primary)),
             )),
           ] else ...[
-            _BlockedChip('Not yet anchored to blockchain (purchase in live mode to activate)'),
+            _BlockedChip(
+              AppConfig.isSolanaReady
+                  ? 'Not yet anchored to Solana. Complete a purchase with a valid wallet signer and funded SOL balance.'
+                  : (solanaBlockReason ?? 'Not yet anchored to blockchain'),
+            ),
           ],
         ],
       ),

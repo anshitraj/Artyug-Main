@@ -15,6 +15,7 @@ const Color kBg = AppColors.background;
 const Color kWhite = Colors.white;
 
 class ThemeProvider with ChangeNotifier {
+  static const _prefKey = 'dark_mode_enabled';
   bool _isDarkMode = false;
 
 
@@ -26,15 +27,14 @@ class ThemeProvider with ChangeNotifier {
 
   Future<void> _loadThemePreference() async {
     final prefs = await SharedPreferences.getInstance();
-    _isDarkMode = prefs.getBool('dark_mode_enabled') ?? false;
-
+    _isDarkMode = prefs.getBool(_prefKey) ?? false;
     notifyListeners();
   }
 
   Future<void> toggleTheme(bool value) async {
     _isDarkMode = value;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('dark_mode_enabled', value);
+    await prefs.setBool(_prefKey, value);
     notifyListeners();
   }
 
@@ -68,7 +68,7 @@ class ThemeProvider with ChangeNotifier {
     return base.copyWith(
       colorScheme: scheme,
       scaffoldBackgroundColor:
-          isDark ? AppColors.background : const Color(0xFFF2F4F8),
+          isDark ? AppColors.background : AppColors.lightBackground,
       drawerTheme: DrawerThemeData(
         backgroundColor: isDark ? AppColors.sidebar : Colors.white,
         surfaceTintColor: Colors.transparent,

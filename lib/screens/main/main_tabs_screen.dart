@@ -13,6 +13,7 @@ import '../../providers/main_tab_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../widgets/onboarding_guide.dart';
 import '../../widgets/artyug_search_bar.dart';
+import '../../widgets/dashboard_background.dart';
 import '../../widgets/profile_sheet.dart';
 import '../../widgets/shop_selector_sheet.dart';
 import '../explore/explore_screen.dart';
@@ -180,6 +181,21 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
 
     if (!mounted) return;
 
+    // User chose "Create New Studio" in selector
+    if (result?['__action'] == 'create_studio') {
+      final created = await context.push<Map<String, dynamic>>('/create-gallery');
+      if (!mounted) return;
+      if (created != null && (created['id']?.toString().isNotEmpty ?? false)) {
+        final shopId = Uri.encodeComponent(created['id']?.toString() ?? '');
+        final shopName = Uri.encodeComponent(created['name']?.toString() ?? '');
+        context.push('/upload?shopId=$shopId&shopName=$shopName');
+      } else {
+        // If studio creation was cancelled, return to upload without studio
+        context.push('/upload');
+      }
+      return;
+    }
+
     if (result != null) {
       final shopId = Uri.encodeComponent(result['id']?.toString() ?? '');
       final shopName = Uri.encodeComponent(result['name']?.toString() ?? '');
@@ -212,7 +228,7 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
     final auth = context.watch<AuthProvider>();
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.canvasOf(context),
       body: SafeArea(
         child: Row(
           children: [
@@ -232,9 +248,8 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
                   ),
                   Expanded(
                     child: Container(
-                      color: AppColors.background,
-                      child: IndexedStack(
-                          index: currentIndex, children: _screens),
+                      color: AppColors.canvasOf(context),
+                      child: IndexedStack(index: currentIndex, children: _screens),
                     ),
                   ),
                 ],
@@ -253,7 +268,6 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
 
   Widget _buildMobileShell(int currentIndex) {
     final modeProvider = context.watch<AppModeProvider>();
-    final themeProvider = context.watch<ThemeProvider>();
     final cs = Theme.of(context).colorScheme;
     return Scaffold(
       key: _mobileShellKey,
@@ -275,89 +289,68 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
       ),
       appBar: AppBar(
         backgroundColor: cs.surface,
+        toolbarHeight: 68,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
+        leadingWidth: 52,
         leading: IconButton(
           icon: Icon(Icons.menu_rounded, color: cs.onSurface),
-          tooltip: 'Open menu',
           onPressed: () => _mobileShellKey.currentState?.openDrawer(),
         ),
-        title: RichText(
-          text: TextSpan(children: [
-            TextSpan(
-              text: 'ARTYUG',
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontSize: 19,
-                fontWeight: FontWeight.w900,
-                color: cs.onSurface,
-                letterSpacing: -0.19,
-              ),
-            ),
-            const TextSpan(
-              text: '.',
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontSize: 19,
-                fontWeight: FontWeight.w900,
-                color: Color(0xFFE8470A),
-              ),
-            ),
-          ]),
-        ),
-        actions: [
-          // Demo/Live pill
-          GestureDetector(
+        titleSpacing: 0,
+        title: Align(
+          alignment: Alignment.centerLeft,
+          child: InkWell(
             onTap: () => _showModeToggle(context, modeProvider),
+            borderRadius: BorderRadius.circular(999),
             child: Container(
-              margin: const EdgeInsets.symmetric(vertical: 10),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              height: 34,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
-                color: (modeProvider.isDemoMode ? AppColors.warning : AppColors.success)
-                    .withValues(alpha: 0.15),
+                color: cs.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(999),
-                border: Border.all(
-                  color: (modeProvider.isDemoMode ? AppColors.warning : AppColors.success)
-                      .withValues(alpha: 0.5),
-                ),
+                border: Border.all(color: cs.outlineVariant),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    width: 7, height: 7,
-                    decoration: BoxDecoration(
-                      color: modeProvider.isDemoMode ? AppColors.warning : AppColors.success,
-                      shape: BoxShape.circle,
-                    ),
+                  Icon(
+                    modeProvider.isDemoMode
+                        ? Icons.bolt_rounded
+                        : Icons.verified_rounded,
+                    size: 15,
+                    color: modeProvider.isDemoMode
+                        ? AppColors.warning
+                        : AppColors.success,
                   ),
-                  const SizedBox(width: 5),
+                  const SizedBox(width: 6),
                   Text(
-                    modeProvider.isDemoMode ? 'DEMO' : 'LIVE',
+                    modeProvider.isDemoMode ? 'Demo mode' : 'Live mode',
                     style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 11,
+                      color: cs.onSurface,
+                      fontSize: 13,
                       fontWeight: FontWeight.w700,
-                      color: modeProvider.isDemoMode ? AppColors.warning : AppColors.success,
                     ),
                   ),
                 ],
               ),
             ),
           ),
-          // Dark/light toggle
+        ),
+        actions: [
           IconButton(
-            icon: Icon(
-              themeProvider.isDarkMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-              size: 20,
-              color: cs.onSurface,
-            ),
-            onPressed: () => themeProvider.toggleTheme(!themeProvider.isDarkMode),
+            tooltip: 'Messages',
+            icon: Icon(Icons.chat_bubble_outline_rounded, color: cs.onSurface),
+            onPressed: () => context.push('/messages'),
           ),
-          // Profile avatar → opens profile sheet
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: const ProfileAvatarButton(radius: 17),
+          IconButton(
+            tooltip: 'Notifications',
+            icon: Icon(Icons.notifications_none_rounded, color: cs.onSurface),
+            onPressed: () => context.push('/notifications'),
+          ),
+          const Padding(
+            padding: EdgeInsets.only(right: 10, left: 2),
+            child: ProfileAvatarButton(radius: 17),
           ),
         ],
       ),
@@ -371,9 +364,9 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
   }
 
   Widget _dashboardShell() {
-    final selected = <_DashboardView>{_dashboardView};
-    return Container(
-      color: AppColors.background,
+    return DashboardBackground(
+      child: Container(
+      color: Colors.transparent,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -384,38 +377,22 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
               runSpacing: 8,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                const Text(
+                Text(
                   'Dashboard',
                   style: TextStyle(
-                    color: AppColors.textPrimary,
+                    color: AppColors.textPrimaryOf(context),
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-                SegmentedButton<_DashboardView>(
-                  segments: const [
-                    ButtonSegment<_DashboardView>(
-                      value: _DashboardView.creator,
-                      icon: Icon(Icons.palette_outlined),
-                      label: Text('Creator'),
-                    ),
-                    ButtonSegment<_DashboardView>(
-                      value: _DashboardView.collector,
-                      icon: Icon(Icons.collections_bookmark_outlined),
-                      label: Text('Collector'),
-                    ),
-                  ],
-                  selected: selected,
-                  onSelectionChanged: (selection) {
-                    if (selection.isEmpty) return;
-                    final next = selection.first;
-                    setState(() => _dashboardView = next);
-                  },
+                _DashboardSwitch(
+                  view: _dashboardView,
+                  onChanged: (next) => setState(() => _dashboardView = next),
                 ),
               ],
             ),
           ),
-          const Divider(height: 1, color: AppColors.border),
+          Divider(height: 1, color: AppColors.borderOf(context)),
           Expanded(
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 180),
@@ -427,6 +404,82 @@ class _MainTabsScreenState extends State<MainTabsScreen> {
                       key: ValueKey<String>('collector-dashboard'),
                     ),
             ),
+          ),
+        ],
+      ),
+    ));
+  }
+}
+
+class _DashboardSwitch extends StatelessWidget {
+  final _DashboardView view;
+  final ValueChanged<_DashboardView> onChanged;
+
+  const _DashboardSwitch({
+    required this.view,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    Widget chip(_DashboardView v, String label, IconData icon) {
+      final selected = view == v;
+      return Expanded(
+        child: InkWell(
+          onTap: () => onChanged(v),
+          borderRadius: BorderRadius.circular(999),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              gradient: selected ? AppColors.accentGradientOf(context) : null,
+              color: selected ? null : Colors.transparent,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  size: 14,
+                  color: selected
+                      ? AppColors.onPrimary
+                      : AppColors.textSecondaryOf(context),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: selected
+                        ? AppColors.onPrimary
+                        : AppColors.textSecondaryOf(context),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      width: 220,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceSoftOf(context),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.borderOf(context)),
+      ),
+      child: Row(
+        children: [
+          chip(_DashboardView.creator, 'Creator', Icons.palette_outlined),
+          chip(
+            _DashboardView.collector,
+            'Collector',
+            Icons.collections_bookmark_outlined,
           ),
         ],
       ),
@@ -581,29 +634,17 @@ class _PremiumSidebar extends StatelessWidget {
       ),
     );
 
-    final columnChildren = <Widget>[
-      ...headerAndNav,
-      if (!scrollable) const Spacer(),
-      if (scrollable) const SizedBox(height: 20),
-      accountPanel,
-    ];
-
-    final body = scrollable
-        ? SingleChildScrollView(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ...headerAndNav,
-                const SizedBox(height: 12),
-                accountPanel,
-              ],
-            ),
-          )
-        : Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: columnChildren,
-          );
+    final body = SingleChildScrollView(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ...headerAndNav,
+          const SizedBox(height: 12),
+          accountPanel,
+        ],
+      ),
+    );
 
     if (scrollable) {
       return body;
@@ -762,9 +803,9 @@ class _ShellTopBar extends StatelessWidget {
     return Container(
       height: 78,
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 14),
-      decoration: const BoxDecoration(
-        color: AppColors.background,
-        border: Border(bottom: BorderSide(color: AppColors.border)),
+      decoration: BoxDecoration(
+        color: AppColors.canvasOf(context),
+        border: Border(bottom: BorderSide(color: AppColors.borderOf(context))),
       ),
       child: Row(
         children: [
@@ -796,13 +837,13 @@ class _ShellTopBar extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: AppColors.surface,
+                  color: AppColors.surfaceOf(context),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.border),
+                  border: Border.all(color: AppColors.borderOf(context)),
                 ),
                 child: Icon(
                   tp.isDarkMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-                  color: AppColors.textSecondary,
+                  color: AppColors.textSecondaryOf(context),
                   size: 20,
                 ),
               ),
@@ -832,11 +873,11 @@ class _IconShellButton extends StatelessWidget {
         width: 44,
         height: 44,
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: AppColors.surfaceOf(context),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: AppColors.borderOf(context)),
         ),
-        child: Icon(icon, color: AppColors.textSecondary, size: 21),
+        child: Icon(icon, color: AppColors.textSecondaryOf(context), size: 21),
       ),
     );
   }
@@ -857,11 +898,11 @@ class _ModePill extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(999),
       child: Ink(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.16),
+          color: AppColors.surfaceSoftOf(context),
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: color.withValues(alpha: 0.45)),
+          border: Border.all(color: color.withValues(alpha: 0.4)),
         ),
         child: Row(
           children: [
@@ -872,11 +913,101 @@ class _ModePill extends StatelessWidget {
             ),
             const SizedBox(width: 7),
             Text(
-              '$label MODE',
+              label,
               style: TextStyle(
                   color: color, fontWeight: FontWeight.w700, fontSize: 11),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ignore: unused_element
+class _LiteProPill extends StatelessWidget {
+  final bool isProMode;
+  final ValueChanged<bool> onChanged;
+
+  const _LiteProPill({
+    required this.isProMode,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        height: 36,
+        padding: const EdgeInsets.all(3),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceSoftOf(context),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: AppColors.borderOf(context)),
+        ),
+        child: Stack(
+          children: [
+            AnimatedAlign(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOut,
+              alignment:
+                  isProMode ? Alignment.centerRight : Alignment.centerLeft,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                width: 54,
+                decoration: BoxDecoration(
+                  gradient: AppColors.accentGradientOf(context),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+            ),
+            Row(
+              children: [
+                _LiteProLabel(
+                  label: 'Lite',
+                  active: !isProMode,
+                  onTap: () => onChanged(false),
+                ),
+                _LiteProLabel(
+                  label: 'Pro',
+                  active: isProMode,
+                  onTap: () => onChanged(true),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+  }
+}
+
+class _LiteProLabel extends StatelessWidget {
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+
+  const _LiteProLabel({
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: active ? AppColors.onPrimary : AppColors.textSecondaryOf(context),
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ),
       ),
     );
@@ -1031,31 +1162,30 @@ class _BottomNavWithUpload extends StatelessWidget {
   });
 
   // Tab indices skip the phantom centre slot
-  // Layout: 0=Home  1=Explore  [Upload]  2=Dashboard  3=Profile
+  // Layout: 0=Home  1=Explore  [Upload]  2=Profile  3=Dashboard
   static const _icons = [
     Icons.home_rounded,
     Icons.explore_rounded,
-    Icons.dashboard_customize_rounded,
     Icons.person_rounded,
+    Icons.dashboard_customize_rounded,
   ];
-  static const _labels = ['Home', 'Explore', 'Dashboard', 'Profile'];
+  static const _labels = ['Home', 'Explore', 'Profile', 'Dashboard'];
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? const Color(0xFF111116) : cs.surface;
-    final dividerColor = isDark
-        ? Colors.white.withValues(alpha: 0.08)
-        : Colors.black.withValues(alpha: 0.08);
+    final bg = AppColors.surfaceElevatedOf(context);
+    final dividerColor = AppColors.borderOf(context);
 
     return SafeArea(
       top: false,
       child: Container(
-        height: 64,
+        height: 74,
+        margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
         decoration: BoxDecoration(
           color: bg,
-          border: Border(top: BorderSide(color: dividerColor)),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: dividerColor),
+          boxShadow: AppColors.cardShadows(context),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1086,16 +1216,16 @@ class _BottomNavWithUpload extends StatelessWidget {
                       ),
                     ],
                   ),
-                  child: const Row(
+                  child: Row(
                     mainAxisSize: MainAxisSize.min,
-                    children: [
+                    children: const [
                       Icon(Icons.add_photo_alternate_rounded,
-                          color: Colors.white, size: 20),
+                          color: AppColors.onPrimary, size: 20),
                       SizedBox(width: 6),
                       Text(
                         'Upload',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: AppColors.onPrimary,
                           fontWeight: FontWeight.w800,
                           fontSize: 13,
                           letterSpacing: 0.2,
@@ -1107,7 +1237,7 @@ class _BottomNavWithUpload extends StatelessWidget {
               ),
             ),
 
-            // Right two: Dashboard + Profile
+            // Right two: Profile + Dashboard
             for (int i = 2; i < 4; i++) _BottomNavItem(
               icon: _icons[i],
               label: _labels[i],

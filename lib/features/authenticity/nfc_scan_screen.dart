@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:nfc_manager/nfc_manager.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../providers/theme_provider.dart';
-import '../../core/config/app_config.dart';
+import '../../services/nfc_link_service.dart';
 
 /// NFC Scan Screen — on web, always shows fallback.
 /// On native, shows UI but delegates actual NFC to platform via lazy dynamic import.
@@ -11,7 +13,14 @@ import '../../core/config/app_config.dart';
 /// The native NFC scanning is triggered via the [_NfcPlatformBridge] which uses
 /// a Navigator.push to a separate route that only loads on Android/iOS.
 class NfcScanScreen extends StatefulWidget {
-  const NfcScanScreen({super.key});
+  final bool returnPayloadOnly;
+  final String? preferredPayload;
+
+  const NfcScanScreen({
+    super.key,
+    this.returnPayloadOnly = false,
+    this.preferredPayload,
+  });
 
   @override
   State<NfcScanScreen> createState() => _NfcScanScreenState();
@@ -21,6 +30,7 @@ class _NfcScanScreenState extends State<NfcScanScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _pulseCtrl;
   bool _scanning = false;
+  String _status = 'Ready to scan';
 
   @override
   void initState() {
@@ -41,10 +51,190 @@ class _NfcScanScreenState extends State<NfcScanScreen>
     super.dispose();
   }
 
-  void _startNfc() => setState(() => _scanning = true);
+  Future<void> _startNfc() async {
+    setState(() {
+      _scanning = true;
+      _status = 'Waiting for NFC tag...';
+    });
+
+    final availability = await NfcManager.instance.checkAvailability();
+    if (availability != NfcAvailability.enabled) {
+      if (!mounted) return;
+      setState(() {
+        _scanning = false;
+        _status = 'NFC is not available on this device.';
+      });
+      return;
+    }
+
+    NfcManager.instance.startSession(
+      pollingOptions: {
+        NfcPollingOption.iso14443,
+        NfcPollingOption.iso15693,
+        NfcPollingOption.iso18092,
+      },
+      onDiscovered: (tag) async {
+      final payload = _extractPayload(tag);
+      await NfcManager.instance.stopSession();
+      if (!mounted) return;
+      setState(() => _scanning = false);
+      await _handleScannedPayload(payload);
+    },
+      onSessionErrorIos: (error) async {
+        await NfcManager.instance.stopSession(errorMessageIos: error.message);
+        if (!mounted) return;
+        setState(() {
+          _scanning = false;
+          _status = 'NFC read failed. Try again.';
+        });
+      },
+    );
+  }
 
   void _stopNfc() {
     if (mounted) setState(() => _scanning = false);
+    NfcManager.instance.stopSession();
+  }
+
+  String? _extractPayload(NfcTag tag) {
+    try {
+      // Uses raw tag map for broad compatibility across nfc_manager versions.
+      // ignore: invalid_use_of_protected_member
+      final map = (tag.data as Map?)?.cast<Object?, Object?>();
+      final ndef = map?['ndef'];
+      final cached = (ndef as Map?)?['cachedMessage'] as Map?;
+      final records = (cached?['records'] ?? cached?['record']) as List?;
+      if (records == null || records.isEmpty) return null;
+      for (final rec in records) {
+        final payloadRaw = (rec as Map)['payload'] as List?;
+        if (payloadRaw == null) continue;
+        final payload = payloadRaw.map((e) => (e as num).toInt()).toList();
+        if (payload.isEmpty) continue;
+        final uri = _decodeUriPayload(payload);
+        if (uri != null && uri.isNotEmpty) return uri;
+        final raw = String.fromCharCodes(payload).trim();
+        if (raw.isNotEmpty) return raw;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  String? _decodeUriPayload(List<int> payload) {
+    if (payload.isEmpty) return null;
+    const prefixes = <String>[
+      '',
+      'http://www.',
+      'https://www.',
+      'http://',
+      'https://',
+      'tel:',
+      'mailto:',
+      'ftp://anonymous:anonymous@',
+      'ftp://ftp.',
+      'ftps://',
+      'sftp://',
+      'smb://',
+      'nfs://',
+      'ftp://',
+      'dav://',
+      'news:',
+      'telnet://',
+      'imap:',
+      'rtsp://',
+      'urn:',
+      'pop:',
+      'sip:',
+      'sips:',
+      'tftp:',
+      'btspp://',
+      'btl2cap://',
+      'btgoep://',
+      'tcpobex://',
+      'irdaobex://',
+      'file://',
+      'urn:epc:id:',
+      'urn:epc:tag:',
+      'urn:epc:pat:',
+      'urn:epc:raw:',
+      'urn:epc:',
+      'urn:nfc:',
+    ];
+    final prefixCode = payload.first;
+    final suffix = String.fromCharCodes(payload.sublist(1));
+    final prefix = prefixCode >= 0 && prefixCode < prefixes.length ? prefixes[prefixCode] : '';
+    return ('$prefix$suffix').trim();
+  }
+
+  Future<void> _handleScannedPayload(String? raw) async {
+    final payload = raw?.trim();
+    if (payload == null || payload.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('NFC tag was empty or unsupported.')),
+      );
+      return;
+    }
+
+    if (widget.returnPayloadOnly) {
+      if (!mounted) return;
+      Navigator.of(context).pop(payload);
+      return;
+    }
+
+    if (payload.startsWith('artyug://certificate/')) {
+      if (!mounted) return;
+      context.push('/qr-result', extra: payload);
+      return;
+    }
+
+    if (payload.startsWith('artyug://artwork/')) {
+      final id = payload.replaceFirst('artyug://artwork/', '').trim();
+      if (id.isNotEmpty) {
+        final configured = await NfcLinkService.getArtworkNfcLink(id);
+        if (configured != null && configured.isNotEmpty) {
+          await _openInsideAndOfferExternal(configured);
+          return;
+        }
+        if (!mounted) return;
+        context.push('/artwork/$id');
+        return;
+      }
+    }
+
+    if (payload.startsWith('http://') || payload.startsWith('https://')) {
+      await _openInsideAndOfferExternal(payload);
+      return;
+    }
+
+    if (!mounted) return;
+    context.push('/qr-result', extra: payload);
+  }
+
+  Future<void> _openInsideAndOfferExternal(String url) async {
+    await _openLinkInApp(url);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Opened inside Artyug'),
+        action: SnackBarAction(
+          label: 'Open in browser',
+          onPressed: () async {
+            final uri = Uri.tryParse(url);
+            if (uri == null) return;
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+          },
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openLinkInApp(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    final ok = await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
+    if (!ok) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 
   @override
@@ -87,6 +277,18 @@ class _NfcScanScreenState extends State<NfcScanScreen>
               style: ElevatedButton.styleFrom(backgroundColor: kOrange, foregroundColor: kWhite),
             )),
             const SizedBox(height: 12),
+            if (widget.returnPayloadOnly && (widget.preferredPayload?.isNotEmpty == true))
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => Navigator.of(context).pop(widget.preferredPayload),
+                  icon: const Icon(Icons.link_rounded, size: 18),
+                  label: const Text('Use default NFC destination'),
+                  style: ElevatedButton.styleFrom(backgroundColor: kOrange, foregroundColor: kWhite),
+                ),
+              ),
+            if (widget.returnPayloadOnly && (widget.preferredPayload?.isNotEmpty == true))
+              const SizedBox(height: 12),
             OutlinedButton(onPressed: () => context.pop(), child: const Text('Go Back')),
           ],
         ),
@@ -136,6 +338,11 @@ class _NfcScanScreenState extends State<NfcScanScreen>
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),
+          Text(
+            _scanning ? 'Scanning in progress...' : _status,
+            style: const TextStyle(fontSize: 13, color: kGrey),
+          ),
+          const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.all(16),
             margin: const EdgeInsets.symmetric(horizontal: 32),
@@ -151,7 +358,10 @@ class _NfcScanScreenState extends State<NfcScanScreen>
           ),
           const SizedBox(height: 32),
           TextButton(
-            onPressed: () => context.pop(),
+            onPressed: () {
+              _stopNfc();
+              context.pop();
+            },
             child: const Text('Cancel', style: TextStyle(color: kGrey, fontSize: 14)),
           ),
         ],

@@ -1,10 +1,13 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../models/painting.dart';
+import '../../services/analytics_service.dart';
 import '../../widgets/premium/premium_ui.dart';
 
 class ShopDetailScreen extends StatefulWidget {
@@ -22,7 +25,10 @@ class _ShopDetailScreenState extends State<ShopDetailScreen> {
   Map<String, dynamic>? _shop;
   List<Map<String, dynamic>> _collections = [];
   List<PaintingModel> _artworks = [];
+  List<PaintingModel> _featuredWorks = [];
   bool _loading = true;
+  bool _studioFollowLoading = false;
+  bool _studioFollowed = false;
   String? _error;
   String _sort = 'newest';
 
@@ -100,10 +106,12 @@ class _ShopDetailScreenState extends State<ShopDetailScreen> {
       }).toList();
 
       if (!mounted) return;
+      await _initStudioFollowState(shopId);
       setState(() {
         _shop = Map<String, dynamic>.from(shop);
         _collections = collRows;
         _artworks = artworks;
+        _featuredWorks = _rankFeaturedWorks(artworks).take(6).toList();
         _loading = false;
       });
     } catch (e) {
@@ -115,12 +123,111 @@ class _ShopDetailScreenState extends State<ShopDetailScreen> {
     }
   }
 
+  List<PaintingModel> _rankFeaturedWorks(List<PaintingModel> items) {
+    final list = List<PaintingModel>.from(items);
+    list.sort((a, b) => _featuredScore(b).compareTo(_featuredScore(a)));
+    return list;
+  }
+
+  double _featuredScore(PaintingModel p) {
+    final likes = p.likesCount;
+    final views = p.viewsCount;
+    final created = p.createdAt ?? DateTime.now();
+    final ageDays = DateTime.now().difference(created).inDays;
+    final recencyBoost = (30 - ageDays).clamp(0, 30).toDouble();
+    return (likes * 3) + (views * 1) + recencyBoost;
+  }
+
+  String _fallbackStudioFollowKey(String shopId, String userId) =>
+      'studio_follow_fallback_${userId}_$shopId';
+
+  Future<void> _initStudioFollowState(String shopId) async {
+    final me = _client.auth.currentUser;
+    if (me == null) {
+      _studioFollowed = false;
+      return;
+    }
+    try {
+      final row = await _client
+          .from('studio_follows')
+          .select('id')
+          .eq('studio_id', shopId)
+          .eq('user_id', me.id)
+          .maybeSingle();
+      _studioFollowed = row != null;
+      return;
+    } catch (_) {}
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _studioFollowed = prefs.getBool(_fallbackStudioFollowKey(shopId, me.id)) ?? false;
+    } catch (_) {
+      _studioFollowed = false;
+    }
+  }
+
+  Future<void> _toggleStudioFollow() async {
+    if (_shop == null || _studioFollowLoading) return;
+    final me = _client.auth.currentUser;
+    if (me == null) return;
+    final shopId = _shop!['id'].toString();
+    HapticFeedback.selectionClick();
+
+    setState(() => _studioFollowLoading = true);
+    final nextState = !_studioFollowed;
+    try {
+      if (nextState) {
+        await _client.from('studio_follows').insert({
+          'studio_id': shopId,
+          'user_id': me.id,
+        });
+      } else {
+        await _client
+            .from('studio_follows')
+            .delete()
+            .eq('studio_id', shopId)
+            .eq('user_id', me.id);
+      }
+    } catch (_) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_fallbackStudioFollowKey(shopId, me.id), nextState);
+    }
+
+    if (!mounted) return;
+    AnalyticsService.track('studio_follow_tap', params: {
+      'shop_id': shopId,
+      'followed': nextState,
+    });
+    setState(() {
+      _studioFollowed = nextState;
+      _studioFollowLoading = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(
-        backgroundColor: AppColors.background,
-        body: Center(child: CircularProgressIndicator(color: AppColors.primary)),
+      return Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Stack(
+          children: [
+            const PremiumBackdrop(
+              glows: [
+                PremiumGlowSpec(
+                  alignment: Alignment(-0.9, -0.85),
+                  size: 270,
+                  color: Color(0x33FF6A2B),
+                ),
+              ],
+            ),
+            ListView(
+              padding: const EdgeInsets.fromLTRB(16, 80, 16, 16),
+              children: const [
+                _FeaturedWorksSkeleton(),
+              ],
+            ),
+          ],
+        ),
       );
     }
 
@@ -149,6 +256,7 @@ class _ShopDetailScreenState extends State<ShopDetailScreen> {
     final description = shop['description']?.toString();
     final cover = shop['cover_image_url']?.toString() ?? shop['banner_url']?.toString();
     final avatar = shop['avatar_url']?.toString();
+    final canFollowStudio = _client.auth.currentUser != null;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -222,6 +330,24 @@ class _ShopDetailScreenState extends State<ShopDetailScreen> {
                             ),
                           ),
                         ),
+                        if (canFollowStudio)
+                          FilledButton.tonal(
+                            onPressed: _studioFollowLoading ? null : _toggleStudioFollow,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: _studioFollowed
+                                  ? AppColors.surface.withValues(alpha: 0.85)
+                                  : AppColors.primary.withValues(alpha: 0.92),
+                              foregroundColor:
+                                  _studioFollowed ? AppColors.textPrimary : Colors.black,
+                            ),
+                            child: _studioFollowLoading
+                                ? const SizedBox(
+                                    width: 12,
+                                    height: 12,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : Text(_studioFollowed ? 'Following' : 'Follow'),
+                          ),
                       ],
                     ),
                   ),
@@ -327,6 +453,99 @@ class _ShopDetailScreenState extends State<ShopDetailScreen> {
                                   ),
                                 ),
                               ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              child: _SectionHeader(
+                title: 'Featured Works',
+                subtitle: _artworks.isEmpty
+                    ? 'No featured works yet'
+                    : 'Handpicked highlights from this studio',
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: _featuredWorks.isEmpty
+                ? const SizedBox.shrink()
+                : SizedBox(
+                    height: 210,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+                      itemCount: _featuredWorks.length > 6 ? 6 : _featuredWorks.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 10),
+                      itemBuilder: (_, i) {
+                        final art = _featuredWorks[i];
+                        return PremiumStaggerReveal(
+                          index: i,
+                          child: GestureDetector(
+                            onTap: () {
+                              AnalyticsService.track('featured_works_tap', params: {
+                                'shop_slug': widget.shopSlug,
+                                'artwork_id': art.id,
+                              });
+                              context.push('/artwork/${art.id}', extra: art);
+                            },
+                            child: Container(
+                              width: 172,
+                              decoration: premiumGlassDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                shadowAlpha: 0.14,
+                                shadowBlur: 12,
+                                shadowOffset: const Offset(0, 6),
+                                gradientColors: [
+                                  AppColors.surface.withValues(alpha: 0.9),
+                                  AppColors.surfaceVariant.withValues(alpha: 0.7),
+                                ],
+                              ),
+                              clipBehavior: Clip.hardEdge,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: art.resolvedImageUrl.isEmpty
+                                        ? Container(color: AppColors.surfaceVariant)
+                                        : CachedNetworkImage(
+                                            imageUrl: art.resolvedImageUrl,
+                                            fit: BoxFit.cover,
+                                            width: double.infinity,
+                                          ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.all(10),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          art.title,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            color: AppColors.textPrimary,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 3),
+                                        Text(
+                                          art.displayPrice,
+                                          style: const TextStyle(
+                                            color: AppColors.primary,
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 12.5,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         );
@@ -459,6 +678,64 @@ class _InlineEmptyState extends StatelessWidget {
             const SizedBox(height: 6),
             Text(cta, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FeaturedWorksSkeleton extends StatelessWidget {
+  const _FeaturedWorksSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 210,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: 3,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (_, __) => Container(
+          width: 172,
+          decoration: premiumGlassDecoration(
+            borderRadius: BorderRadius.circular(12),
+            shadowAlpha: 0.1,
+            shadowBlur: 8,
+            shadowOffset: const Offset(0, 4),
+            gradientColors: [
+              AppColors.surface.withValues(alpha: 0.9),
+              AppColors.surfaceVariant.withValues(alpha: 0.7),
+            ],
+          ),
+          child: Column(
+            children: [
+              Expanded(
+                child: Container(
+                  margin: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+              Container(
+                height: 10,
+                margin: const EdgeInsets.fromLTRB(10, 0, 60, 6),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              Container(
+                height: 9,
+                margin: const EdgeInsets.fromLTRB(10, 0, 96, 10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

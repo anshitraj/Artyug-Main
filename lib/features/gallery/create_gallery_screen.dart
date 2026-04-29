@@ -81,20 +81,20 @@ class _CreateGalleryScreenState extends State<CreateGalleryScreen>
         avatarUrl = db.storage.from('shop-assets').getPublicUrl(path);
       }
 
-      await db.from('shops').insert({
+      final created = await db.from('shops').insert({
         'owner_id': user.id,
         'name': _nameCtrl.text.trim(),
         'description': _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
         'avatar_url': avatarUrl,
         'is_active': true,
-      });
+      }).select('id, name, avatar_url').single();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Gallery created! ✨'),
           backgroundColor: _accent,
         ));
-        context.pop(); // go back to selector
+        context.pop(Map<String, dynamic>.from(created));
       }
     } catch (e) {
       if (mounted) {

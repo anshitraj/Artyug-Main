@@ -1,9 +1,11 @@
-import 'package:cached_network_image/cached_network_image.dart';
+﻿import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/theme/app_colors.dart';
@@ -13,7 +15,9 @@ import '../../../models/order.dart';
 import '../../../models/profile.dart';
 import '../../../providers/app_mode_provider.dart';
 import '../../../providers/dashboard_provider.dart';
+import '../../../services/analytics_service.dart';
 import '../../../services/demo_wallet_service.dart';
+import '../../../widgets/dashboard_background.dart';
 
 class CollectorDashboardScreen extends StatefulWidget {
   const CollectorDashboardScreen({super.key});
@@ -26,6 +30,9 @@ class CollectorDashboardScreen extends StatefulWidget {
 class _CollectorDashboardScreenState extends State<CollectorDashboardScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabs;
+  final _supabase = Supabase.instance.client;
+  List<Map<String, dynamic>> _joinedGuilds = const [];
+  bool _guildsLoading = true;
 
   @override
   void initState() {
@@ -33,6 +40,7 @@ class _CollectorDashboardScreenState extends State<CollectorDashboardScreen>
     _tabs = TabController(length: 3, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<DashboardProvider>().loadDashboard();
+      _loadJoinedGuilds();
     });
   }
 
@@ -42,32 +50,74 @@ class _CollectorDashboardScreenState extends State<CollectorDashboardScreen>
     super.dispose();
   }
 
+  Future<void> _loadJoinedGuilds() async {
+    try {
+      final me = _supabase.auth.currentUser;
+      if (me == null) return;
+      final rows = await _supabase
+          .from('community_members')
+          .select('community_id, role, communities(id, name, slug, avatar_url)')
+          .eq('user_id', me.id)
+          .limit(12);
+
+      final memberships = List<Map<String, dynamic>>.from(rows as List);
+      if (memberships.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _joinedGuilds = const [];
+          _guildsLoading = false;
+        });
+        return;
+      }
+
+      final guilds = memberships.map((m) {
+        final c = (m['communities'] as Map<String, dynamic>?) ?? const {};
+        return <String, dynamic>{
+          'id': c['id']?.toString() ?? m['community_id']?.toString() ?? '',
+          'name': (c['name'] as String?)?.trim(),
+          'slug': c['slug']?.toString(),
+          'avatar_url': (c['avatar_url'] as String?)?.trim(),
+          'role': (m['role'] as String?)?.trim() ?? 'member',
+        };
+      }).where((g) => (g['id'] as String).isNotEmpty).toList();
+
+      if (!mounted) return;
+      setState(() {
+        _joinedGuilds = guilds;
+        _guildsLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _joinedGuilds = const [];
+        _guildsLoading = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: Stack(
-        children: [
-          const _CollectorBackdrop(),
-          Consumer<DashboardProvider>(
-            builder: (context, dash, _) {
-              if (dash.loading && dash.stats == null) {
-                return const Center(
-                  child: CircularProgressIndicator(color: AppColors.primary),
-                );
-              }
-              if (dash.error != null && dash.stats == null) {
-                return Center(
-                  child: Text(
-                    dash.error!,
-                    style: const TextStyle(color: AppColors.error),
-                  ),
-                );
-              }
-              return _buildContent(context, dash);
-            },
-          ),
-        ],
+      body: DashboardBackground(
+        child: Consumer<DashboardProvider>(
+          builder: (context, dash, _) {
+            if (dash.loading && dash.stats == null) {
+              return const Center(
+                child: CircularProgressIndicator(color: AppColors.primary),
+              );
+            }
+            if (dash.error != null && dash.stats == null) {
+              return Center(
+                child: Text(
+                  dash.error!,
+                  style: const TextStyle(color: AppColors.error),
+                ),
+              );
+            }
+            return _buildContent(context, dash);
+          },
+        ),
       ),
     );
   }
@@ -134,6 +184,13 @@ class _CollectorDashboardScreenState extends State<CollectorDashboardScreen>
                 onTap: () => context.push('/search?q=artist'),
               ),
             ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+          child: _MyStudiosQuickModule(
+            studios: _joinedGuilds,
+            loading: _guildsLoading,
           ),
         ),
         Container(
@@ -246,61 +303,168 @@ class _CollectorQuickAction extends StatelessWidget {
   }
 }
 
-class _CollectorBackdrop extends StatelessWidget {
-  const _CollectorBackdrop();
+class _MyStudiosQuickModule extends StatelessWidget {
+  final List<Map<String, dynamic>> studios;
+  final bool loading;
+
+  const _MyStudiosQuickModule({required this.studios, this.loading = false});
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(color: AppColors.background),
-      child: Stack(
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.surfaceOf(context).withValues(alpha: 0.88),
+            AppColors.surfaceMutedOf(context).withValues(alpha: 0.72),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.borderOf(context)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Positioned(
-            top: -110,
-            right: -80,
-            child: _BackdropOrb(
-              size: 300,
-              color: AppColors.primary.withValues(alpha: 0.2),
-            ),
+          Row(
+            children: [
+              Text(
+                'Guilds I Participate In',
+                style: TextStyle(
+                  color: AppColors.textPrimaryOf(context),
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13.5,
+                ),
+              ),
+              const Spacer(),
+              TextButton(
+                onPressed: () => context.push('/guild'),
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                ),
+                child: const Text('View guilds'),
+              ),
+            ],
           ),
-          Positioned(
-            top: 220,
-            left: -120,
-            child: _BackdropOrb(
-              size: 320,
-              color: const Color(0xFF3183FF).withValues(alpha: 0.14),
+          const SizedBox(height: 6),
+          if (loading)
+            const _StudiosChipSkeletonRow()
+          else if (studios.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.surface.withValues(alpha: 0.75),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                       'Join guilds to build your collector community feed.',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton(
+                     onPressed: () => context.push('/guild'),
+                     child: const Text('Find guilds'),
+                  ),
+                ],
+              ),
+            )
+          else
+            SizedBox(
+              height: 36,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: studios.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (_, i) {
+                final studio = studios[i];
+                final name = (studio['name'] as String?)?.trim().isNotEmpty == true
+                    ? (studio['name'] as String).trim()
+                     : 'Guild';
+                final slug = studio['slug']?.toString();
+                final avatar = (studio['avatar_url'] as String?)?.trim();
+                return ActionChip(
+                  avatar: CircleAvatar(
+                    radius: 10,
+                    backgroundColor: AppColors.primary.withValues(alpha: 0.2),
+                    backgroundImage: avatar != null && avatar.isNotEmpty
+                        ? CachedNetworkImageProvider(avatar)
+                        : null,
+                    child: (avatar == null || avatar.isEmpty)
+                        ? Text(
+                            name.substring(0, 1).toUpperCase(),
+                            style: const TextStyle(
+                              color: AppColors.primary,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          )
+                        : null,
+                  ),
+                  label: Text(
+                    name,
+                    style: TextStyle(
+                      color: AppColors.textPrimaryOf(context),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  onPressed: () {
+                     AnalyticsService.track('collector_guild_chip_tap', params: {
+                       'slug': slug ?? '',
+                       'guild_id': studio['id']?.toString() ?? '',
+                     });
+                     final guildId = studio['id']?.toString() ?? '';
+                     if (guildId.isNotEmpty) {
+                       context.push('/community-detail/$guildId');
+                     } else {
+                       context.push('/guild');
+                     }
+                   },
+                  backgroundColor: AppColors.surfaceOf(context),
+                  side: BorderSide(color: AppColors.borderOf(context)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                );
+                },
+              ),
             ),
-          ),
-          Positioned(
-            bottom: -100,
-            right: 20,
-            child: _BackdropOrb(
-              size: 250,
-              color: const Color(0xFF16C79A).withValues(alpha: 0.1),
-            ),
-          ),
         ],
       ),
     );
   }
 }
 
-class _BackdropOrb extends StatelessWidget {
-  final double size;
-  final Color color;
-
-  const _BackdropOrb({required this.size, required this.color});
+class _StudiosChipSkeletonRow extends StatelessWidget {
+  const _StudiosChipSkeletonRow();
 
   @override
   Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: RadialGradient(
-            colors: [color, color.withValues(alpha: 0)],
+    return SizedBox(
+      height: 36,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: 4,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (_, __) => Container(
+          width: 92,
+          decoration: BoxDecoration(
+            color: AppColors.surface.withValues(alpha: 0.7),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: AppColors.border),
           ),
         ),
       ),
@@ -308,7 +472,6 @@ class _BackdropOrb extends StatelessWidget {
   }
 }
 
-// ─── Portfolio header (Magic Eden–style hierarchy) ─────────────────────────
 
 class _PortfolioHero extends StatelessWidget {
   final ProfileModel? profile;
@@ -331,19 +494,15 @@ class _PortfolioHero extends StatelessWidget {
     final initials = profile?.initials ?? '?';
     final avatarUrl =
         SupabaseMediaUrl.resolve(profile?.profilePictureUrl);
+    final inr = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
 
     return Container(
       width: double.infinity,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Color(0xFF1A0A00),
-            Color(0xFF160C1E),
-            Color(0xFF0E1424),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceElevatedOf(context),
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: AppColors.borderOf(context)),
+        boxShadow: AppColors.cardShadows(context),
       ),
       child: Padding(
         padding: EdgeInsets.fromLTRB(
@@ -356,7 +515,7 @@ class _PortfolioHero extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Container(
                   decoration: BoxDecoration(
@@ -413,145 +572,144 @@ class _PortfolioHero extends StatelessWidget {
                         Text('Art Collector', style: TextStyle(
                           color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w700)),
                       ]),
-                      const SizedBox(height: 14),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _HeroStatChip(
-                              label: 'Collection Value',
-                              value: '₹${totalSpent.toStringAsFixed(0)}',
-                              icon: Icons.monetization_on_outlined,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: _HeroStatChip(
-                              label: 'Artworks Owned',
-                              value: '$owned',
-                              icon: Icons.image_outlined,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: _HeroStatChip(
-                              label: 'Artist Support',
-                              value: '$certificates',
-                              icon: Icons.handshake_outlined,
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (showDemoWallet) ...[
-                        const SizedBox(height: 10),
-                        FutureBuilder<int>(
-                          future: DemoWalletService.getBalanceInr(),
-                          builder: (context, snap) {
-                            final bal = snap.data ?? DemoWalletService.initialBalanceInr;
-                            final pct = (bal / DemoWalletService.initialBalanceInr)
-                                .clamp(0.0, 1.0);
-                            return Container(
-                              padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.22),
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(
-                                  color: AppColors.warning.withValues(alpha: 0.35),
-                                ),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Container(
-                                        width: 8,
-                                        height: 8,
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          color: AppColors.warning,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        'Demo wallet',
-                                        style: TextStyle(
-                                          color: AppColors.textSecondaryOf(context),
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                      const Spacer(),
-                                      TextButton(
-                                        onPressed: () async {
-                                          await DemoWalletService.reset();
-                                          if (context.mounted) {
-                                            // Rebuild to show updated balance.
-                                            (context as Element).markNeedsBuild();
-                                          }
-                                        },
-                                        style: TextButton.styleFrom(
-                                          foregroundColor: AppColors.warning,
-                                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                                          visualDensity: VisualDensity.compact,
-                                        ),
-                                        child: const Text(
-                                          'Reset',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w800,
-                                            fontSize: 11,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Row(
-                                    children: [
-                                      Text(
-                                        '₹$bal',
-                                        style: const TextStyle(
-                                          color: AppColors.warning,
-                                          fontWeight: FontWeight.w900,
-                                          fontSize: 16,
-                                          letterSpacing: -0.2,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        'left to invest',
-                                        style: TextStyle(
-                                          color: AppColors.textTertiaryOf(context),
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(999),
-                                    child: LinearProgressIndicator(
-                                      value: pct,
-                                      minHeight: 6,
-                                      backgroundColor:
-                                          Colors.white.withValues(alpha: 0.08),
-                                      valueColor:
-                                          const AlwaysStoppedAnimation<Color>(
-                                        AppColors.warning,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-                      ],
                     ],
                   ),
                 ),
               ],
             ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: _HeroStatChip(
+                    label: 'Collection Value',
+                    value: inr.format(totalSpent),
+                    icon: Icons.monetization_on_outlined,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _HeroStatChip(
+                    label: 'Artworks Owned',
+                    value: '$owned',
+                    icon: Icons.image_outlined,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _HeroStatChip(
+                    label: 'Certificates',
+                    value: '$certificates',
+                    icon: Icons.verified_user_outlined,
+                  ),
+                ),
+              ],
+            ),
+            if (showDemoWallet) ...[
+              const SizedBox(height: 10),
+              FutureBuilder<int>(
+                future: DemoWalletService.getBalanceInr(),
+                builder: (context, snap) {
+                  final bal = snap.data ?? DemoWalletService.initialBalanceInr;
+                  final pct = (bal / DemoWalletService.initialBalanceInr)
+                      .clamp(0.0, 1.0);
+                  return Container(
+                    padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceSoftOf(context),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: AppColors.warning.withValues(alpha: 0.35),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: AppColors.warning,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Demo wallet',
+                              style: TextStyle(
+                                color: AppColors.textSecondaryOf(context),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const Spacer(),
+                            TextButton(
+                              onPressed: () async {
+                                await DemoWalletService.reset();
+                                if (context.mounted) {
+                                  (context as Element).markNeedsBuild();
+                                }
+                              },
+                              style: TextButton.styleFrom(
+                                foregroundColor: AppColors.warning,
+                                padding: const EdgeInsets.symmetric(horizontal: 10),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                              child: const Text(
+                                'Reset',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Text(
+                              inr.format(bal),
+                              style: const TextStyle(
+                                color: AppColors.warning,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 16,
+                                letterSpacing: -0.2,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'available to invest',
+                              style: TextStyle(
+                                color: AppColors.textTertiaryOf(context),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(999),
+                          child: LinearProgressIndicator(
+                            value: pct,
+                            minHeight: 6,
+                            backgroundColor:
+                                Colors.white.withValues(alpha: 0.08),
+                            valueColor:
+                                const AlwaysStoppedAnimation<Color>(
+                              AppColors.warning,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ],
           ],
         ),
       ),
@@ -626,7 +784,7 @@ class _HeroStatChip extends StatelessWidget {
   }
 }
 
-// ─── Purchases / Items tab ─────────────────────────────────────────────────
+// â”€â”€â”€ Purchases / Items tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 enum _PurchaseSort { recent, priceHigh, priceLow, title }
 
@@ -685,9 +843,9 @@ class _PurchasesTabState extends State<_PurchasesTab> {
 
   String get _sortLabel => switch (_sort) {
         _PurchaseSort.recent => 'Recent',
-        _PurchaseSort.priceHigh => 'Price: high → low',
-        _PurchaseSort.priceLow => 'Price: low → high',
-        _PurchaseSort.title => 'Title A–Z',
+        _PurchaseSort.priceHigh => 'Price: high to low',
+        _PurchaseSort.priceLow => 'Price: low to high',
+        _PurchaseSort.title => 'Title A-Z',
       };
 
   @override
@@ -696,7 +854,7 @@ class _PurchasesTabState extends State<_PurchasesTab> {
       return _EmptyPortfolio(
         icon: Icons.inventory_2_outlined,
         title: 'No items yet',
-        subtitle: 'Works you buy will show up here — browse the marketplace.',
+        subtitle: 'Works you buy will show up here. Browse the marketplace.',
         actionLabel: 'Browse artworks',
         onAction: () => context.push('/explore'),
       );
@@ -777,21 +935,21 @@ class _PurchasesTabState extends State<_PurchasesTab> {
                   PopupMenuItem(
                     value: _PurchaseSort.priceHigh,
                     child: Text(
-                      'Price: high → low',
+                      'Price: high â†’ low',
                       style: TextStyle(color: AppColors.textPrimaryOf(context)),
                     ),
                   ),
                   PopupMenuItem(
                     value: _PurchaseSort.priceLow,
                     child: Text(
-                      'Price: low → high',
+                      'Price: low â†’ high',
                       style: TextStyle(color: AppColors.textPrimaryOf(context)),
                     ),
                   ),
                   PopupMenuItem(
                     value: _PurchaseSort.title,
                     child: Text(
-                      'Title A–Z',
+                      'Title Aâ€“Z',
                       style: TextStyle(color: AppColors.textPrimaryOf(context)),
                     ),
                   ),
@@ -1424,7 +1582,7 @@ class _EmptyPortfolio extends StatelessWidget {
   }
 }
 
-// ─── Vault ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Vault â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _VaultTab extends StatelessWidget {
   final List<CertificateModel> certificates;
@@ -1640,7 +1798,7 @@ class _CertificateTile extends StatelessWidget {
                       ScaffoldMessenger.of(sheetContext).showSnackBar(
                         const SnackBar(
                           content: Text(
-                            'Could not open browser — link copied',
+                            'Could not open browser â€” link copied',
                           ),
                         ),
                       );
@@ -1707,7 +1865,7 @@ class _Row extends StatelessWidget {
       );
 }
 
-// ─── Saved ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Saved â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _SavedTab extends StatelessWidget {
   const _SavedTab();
@@ -1723,3 +1881,4 @@ class _SavedTab extends StatelessWidget {
     );
   }
 }
+

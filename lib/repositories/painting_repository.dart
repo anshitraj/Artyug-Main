@@ -31,7 +31,7 @@ class PaintingRepository {
       final profile = item['profiles'] as Map<String, dynamic>?;
       return PaintingModel.fromJson({
         ...item,
-        'display_name': profile?['display_name'],
+        'display_name': profile?['display_name'] ?? profile?['username'],
         'profile_picture_url': profile?['profile_picture_url'],
         'artist_is_verified': profile?['is_verified'],
         'is_verified_artwork': item['is_verified'],
@@ -113,7 +113,7 @@ class PaintingRepository {
     final profile = data['profiles'] as Map<String, dynamic>?;
     return PaintingModel.fromJson({
       ...data,
-      'display_name': profile?['display_name'],
+      'display_name': profile?['display_name'] ?? profile?['username'],
       'profile_picture_url': profile?['profile_picture_url'],
       'artist_is_verified': profile?['is_verified'],
       'is_verified_artwork': data['is_verified'],
@@ -155,7 +155,7 @@ class PaintingRepository {
         .select('''
           *,
           profiles!paintings_artist_id_fkey(
-            display_name, profile_picture_url, is_verified
+            display_name, username, profile_picture_url, is_verified
           )
         ''')
         .ilike('title', '%$query%')
@@ -165,7 +165,7 @@ class PaintingRepository {
       final profile = item['profiles'] as Map<String, dynamic>?;
       return PaintingModel.fromJson({
         ...item,
-        'display_name': profile?['display_name'],
+        'display_name': profile?['display_name'] ?? profile?['username'],
         'profile_picture_url': profile?['profile_picture_url'],
         'artist_is_verified': profile?['is_verified'],
         'is_verified_artwork': item['is_verified'],

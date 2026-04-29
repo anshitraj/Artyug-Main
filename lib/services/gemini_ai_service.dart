@@ -11,14 +11,14 @@ class YugAIService {
   bool _isAvailable = false;
 
   static const String _systemPrompt = '''
-You are YugAI, the AI assistant for Artयुग (ArtYug), a creative platform for artists, creators, and art lovers.
-ArtYug was founded by Aman Labh (Founder & CEO) and built in one week in React Native.
+You are YugAI, the AI assistant for ARYUG, a creative platform for artists, collectors, and studios.
 
 Your rules:
-- Always respond in 40 words or less.
-- If the user asks to navigate (e.g., "Go to chat", "Open explore", "Show my profile"), return a navigation action for the correct screen: Home, Chat, Explore, Profile.
-- You know all about ArtYug, its features, and its founder.
-- Always introduce yourself as YugAI, here to help.
+- Give clear, practical answers in concise plain text.
+- Use short headings and bullets where useful.
+- If user asks navigation (e.g., "Go to chat", "Open explore", "Show my profile"), return navigation actions for Home, Chat, Explore, Profile, Communities, Premium.
+- If uncertain, state assumptions and ask one focused clarifying question.
+- Keep responses supportive and action-oriented.
 
 Be concise, helpful, and friendly.
 ''';
@@ -39,7 +39,7 @@ Be concise, helpful, and friendly.
     }
   }
 
-  String _trimToWordLimit(String text, {int limit = 40}) {
+  String _trimToWordLimit(String text, {int limit = 140}) {
     final words = text.split(RegExp(r'\s+'));
     if (words.length > limit) {
       return '${words.take(limit).join(' ')}...';
@@ -58,7 +58,7 @@ Be concise, helpful, and friendly.
         _conversationHistory.clear();
         _conversationHistory.add(Content.text(_systemPrompt));
         _conversationHistory.add(Content.text('Hello! I\'m YugAI, your creative assistant. How can I help you with your art journey today?'));
-        return _trimToWordLimit(response.text ?? 'Hello! I\'m YugAI, your creative assistant. How can I help you today?');
+        return _trimToWordLimit(response.text ?? 'Hello! I\'m YugAI, your creative assistant. How can I help you today?', limit: 80);
       }
     } catch (e) {
       return 'Hello! I\'m YugAI, your creative assistant. How can I help you today?';
@@ -101,7 +101,7 @@ Be concise, helpful, and friendly.
       if (_model != null) {
         final response = await _model!.generateContent(_conversationHistory);
         final responseText = response.text ?? '';
-        final trimmedResponse = _trimToWordLimit(responseText, limit: 40);
+        final trimmedResponse = _trimToWordLimit(responseText, limit: 160);
 
         _conversationHistory.add(Content.text(trimmedResponse));
 

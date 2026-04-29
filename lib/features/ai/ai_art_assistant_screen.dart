@@ -35,16 +35,36 @@ class _AiArtAssistantScreenState extends State<AiArtAssistantScreen> {
   ChatSession? _chat;
 
   static const _systemPrompt = '''
-You are the Artyug Art Assistant — a knowledgeable, friendly AI for artists 
-and art collectors on the Artyug platform. You help with:
-• Art critique and style analysis
-• Pricing advice for artworks (INR-aware for Indian market)
-• Mediums, techniques, and best practices
-• Art history and movement context
-• Writing artist statements and descriptions
-• Blockchain certificates and authenticity for collectors
-Keep replies concise, practical, and encouraging. 
-Use some emojis to make responses friendly.
+You are ARYUG Art Assistant for artists, collectors, and studios.
+
+Core responsibilities:
+- Artwork critique, composition, color, and technique guidance
+- Pricing strategy with INR examples and Indian-market context
+- Artist statements, bios, catalog copy, and social captions
+- Portfolio strategy, collector communication, and sales readiness
+- Authenticity workflows (certificate, QR, NFC) in plain language
+
+Response policy:
+- Be accurate, practical, and directly useful.
+- If the prompt is broad, ask one concise clarifying question first.
+- If unsure, say what is uncertain and offer a safe next step.
+- Prefer clean plain text with headings and short bullets.
+- Do not use markdown bold markers like ** in the final output.
+
+Default response structure:
+1) Direct answer
+2) Action steps
+3) Optional template/example when useful
+''';
+
+  static const _knowledgeContext = '''
+ARYUG context for grounding:
+- ARYUG is an art-tech and creator identity platform.
+- Primary users: artists, collectors, studio owners.
+- Platform themes: authenticity, trust, premium creator presence.
+- Trust stack includes certificate flows, QR verification, and NFC pathways.
+- Currency context should support INR examples by default.
+- Tone should be premium, supportive, professional, and concise.
 ''';
 
   @override
@@ -79,12 +99,12 @@ Use some emojis to make responses friendly.
   void _addWelcome() {
     _messages.add(const _ChatMessage(
       role: _Role.assistant,
-      text: '🎨 Hi! I\'m your Artyug Art Assistant, powered by Gemini.\n\n'
+      text: 'Hi! I\'m your ARYUG Art Assistant, powered by Gemini.\n\n'
           'I can help you with:\n'
-          '• **Art critique** — upload a photo for feedback\n'
-          '• **Pricing advice** — for the Indian art market\n'
-          '• **Techniques** — mediums, styles, and methods\n'
-          '• **Artist statements** — writing compelling descriptions\n\n'
+          '• Art critique — upload a photo for feedback\n'
+          '• Pricing advice — for the Indian art market\n'
+          '• Techniques — mediums, styles, and methods\n'
+          '• Artist statements — writing compelling descriptions\n\n'
           'What can I help you create today?',
     ));
   }
@@ -122,6 +142,7 @@ Use some emojis to make responses friendly.
 
     try {
       List<Part> parts = [];
+      parts.add(TextPart(_knowledgeContext));
       if (text.isNotEmpty) parts.add(TextPart(text));
       if (imageBytes != null) {
         parts.add(DataPart('image/jpeg', imageBytes));
@@ -158,37 +179,37 @@ Use some emojis to make responses friendly.
 
   String _getDemoResponse(String input, bool hasImage) {
     if (hasImage) {
-      return '🎨 **Artwork Analysis**\n\n'
+      return 'Artwork Analysis\n\n'
           'This piece shows strong compositional instincts — '
           'the use of negative space creates visual breathing room.\n\n'
-          '**Style Notes:**\n'
+          'Style Notes:\n'
           '• The colour palette leans warm, suggesting emotional depth\n'
           '• Brushwork is expressive and gestural\n'
           '• The focal point draws the eye naturally\n\n'
-          '**Suggestions:**\n'
+          'Suggestions:\n'
           '• Consider adding a mid-tone to bridge darks and lights\n'
           '• A title that references the emotional undertone would strengthen collector appeal\n\n'
-          '_Connect a Gemini API key in .env for full AI analysis._';
+          'Connect a Gemini API key in .env for full AI analysis.';
     }
 
     final lower = input.toLowerCase();
     if (lower.contains('price') || lower.contains('sell') || lower.contains('₹')) {
-      return '💰 **Pricing Your Art (India)**\n\n'
+      return 'Pricing Your Art (India)\n\n'
           'A good starting formula for emerging artists:\n\n'
           'Price = (Material cost × 3) + (Hours × ₹300–500/hr)\n\n'
           'For a 24×36" canvas with 20 hours of work:\n'
           '• Materials: ₹2,000 × 3 = ₹6,000\n'
           '• Labour: 20 × ₹400 = ₹8,000\n'
-          '• **Suggested: ₹14,000–18,000**\n\n'
+          '• Suggested: ₹14,000–18,000\n\n'
           'Factor in your following, exhibition history, and medium. '
           'Watercolours typically fetch less than oils for the same size.';
     }
     if (lower.contains('statement') || lower.contains('description')) {
-      return '✍️ **Artist Statement Tips**\n\n'
+      return 'Artist Statement Tips\n\n'
           'Great artist statements answer 3 questions:\n\n'
-          '1. **What** — What do you make and with what materials?\n'
-          '2. **Why** — What drives or inspires your work?\n'
-          '3. **Impact** — What do you want viewers to feel or think?\n\n'
+          '1. What — What do you make and with what materials?\n'
+          '2. Why — What drives or inspires your work?\n'
+          '3. Impact — What do you want viewers to feel or think?\n\n'
           'Keep it 100–200 words. Avoid jargon.\n\n'
           'Template: *"I create [medium] works that explore [theme]. '
           'Inspired by [source], my practice examines [idea]. '
@@ -197,19 +218,19 @@ Use some emojis to make responses friendly.
     if (lower.contains('medium') || lower.contains('technique') ||
         lower.contains('paint') || lower.contains('oil') ||
         lower.contains('watercolour') || lower.contains('acrylic')) {
-      return '🖌️ **Medium Comparison**\n\n'
-          '**Oil paint** — Rich depth, slow drying, highly valued. '
+      return 'Medium Comparison\n\n'
+          'Oil paint — Rich depth, slow drying, highly valued. '
           'Best for large canvases and layered techniques.\n\n'
-          '**Watercolour** — Delicate, luminous, portable. '
+          'Watercolour — Delicate, luminous, portable. '
           'Demands confidence — mistakes are hard to fix.\n\n'
-          '**Acrylics** — Versatile, fast-drying, water-clean. '
+          'Acrylics — Versatile, fast-drying, water-clean. '
           'Can mimic both oil and watercolour effects.\n\n'
-          '**Mixed media** — Combines materials for texture and depth. '
+          'Mixed media — Combines materials for texture and depth. '
           'Very popular with contemporary collectors.';
     }
     return '🎨 Great question! I\'m currently running in demo mode without a live Gemini API key.\n\n'
         'To enable full AI responses:\n'
-        '1. Get a free key at **ai.google.dev**\n'
+        '1. Get a free key at ai.google.dev\n'
         '2. Add `GEMINI_API_KEY=your_key` to your `.env` file\n'
         '3. Restart the app\n\n'
         'In the meantime, try the preset prompts below for demo responses on '
@@ -261,27 +282,38 @@ Use some emojis to make responses friendly.
         ),
         title: Row(
           children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Center(
-                child: Text('✦', style: TextStyle(fontSize: 16, color: Colors.white)),
-              ),
-            ),
-            const SizedBox(width: 10),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                RichText(
+                  text: const TextSpan(
+                    children: [
+                      TextSpan(
+                        text: 'ARTYUG',
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      TextSpan(
+                        text: '.',
+                        style: TextStyle(
+                          color: AppColors.primary,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
                 const Text(
                   'Art Assistant',
                   style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
+                    color: AppColors.textSecondary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
                 Text(
@@ -455,14 +487,21 @@ class _MessageBubble extends StatelessWidget {
         children: [
           if (!isUser) ...[
             Container(
-              width: 28,
+              width: 44,
               height: 28,
               decoration: BoxDecoration(
                 color: AppColors.primary,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Center(
-                child: Text('✦', style: TextStyle(fontSize: 12, color: Colors.white)),
+                child: Text(
+                  'ARYUG.',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
               ),
             ),
             const SizedBox(width: 8),

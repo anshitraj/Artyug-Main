@@ -1,8 +1,7 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../core/theme/app_colors.dart';
 
-/// Tappable pill matching [ArtyugSearchBar] — for shell / nav rows (no [TextField]).
 class ArtyugSearchRouteTrigger extends StatelessWidget {
   final String hintText;
   final VoidCallback onTap;
@@ -15,18 +14,8 @@ class ArtyugSearchRouteTrigger extends StatelessWidget {
     this.height = 46,
   });
 
-  static const _fillDark = Color(0xFF1A1428);
-  static const _neon = Color(0xFFC4B5FD);
-  static const _neonCore = Color(0xFF8B5CF6);
-
   @override
   Widget build(BuildContext context) {
-    // Always use dark neon pill (Explore reference). Search and shell often sit on
-    // dark surfaces while [ThemeMode.light] would wrongly pick the lavender fill.
-    const fill = _fillDark;
-    final hintColor = _neon.withValues(alpha: 0.55);
-    final iconColor = _neon.withValues(alpha: 0.75);
-
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -35,24 +24,25 @@ class ArtyugSearchRouteTrigger extends StatelessWidget {
         child: Ink(
           height: height,
           decoration: BoxDecoration(
-            color: fill,
+            color: AppColors.surfaceOf(context),
             borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-              color: _neonCore.withValues(alpha: 0.42),
-            ),
+            border: Border.all(color: AppColors.borderOf(context)),
             boxShadow: [
               BoxShadow(
-                color: _neonCore.withValues(alpha: 0.22),
+                color: AppColors.shadowOf(context, alpha: 0.55),
                 blurRadius: 14,
-                spreadRadius: 0,
-                offset: const Offset(0, 2),
+                offset: const Offset(0, 3),
               ),
             ],
           ),
           child: Row(
             children: [
               const SizedBox(width: 14),
-              Icon(Icons.search_rounded, color: iconColor, size: 22),
+              Icon(
+                Icons.search_rounded,
+                color: AppColors.textMutedOf(context),
+                size: 21,
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -60,7 +50,7 @@ class ArtyugSearchRouteTrigger extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: hintColor,
+                    color: AppColors.textMutedOf(context),
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                   ),
@@ -75,7 +65,6 @@ class ArtyugSearchRouteTrigger extends StatelessWidget {
   }
 }
 
-/// Violet “neon” pill search field — matches Explore / global Search styling.
 class ArtyugSearchBar extends StatefulWidget {
   final TextEditingController controller;
   final FocusNode? focusNode;
@@ -110,11 +99,6 @@ class _ArtyugSearchBarState extends State<ArtyugSearchBar> {
   bool _ownsFocus = false;
   bool _focused = false;
 
-  // Violet neon system (Explore reference) — always dark pill for brand consistency
-  static const _fillDark = Color(0xFF1A1428);
-  static const _neon = Color(0xFFC4B5FD);
-  static const _neonCore = Color(0xFF8B5CF6);
-
   @override
   void initState() {
     super.initState();
@@ -138,29 +122,24 @@ class _ArtyugSearchBarState extends State<ArtyugSearchBar> {
 
   @override
   Widget build(BuildContext context) {
-    const fill = _fillDark;
-    final hintColor = _neon.withValues(alpha: 0.55);
-    final iconColor = _neon.withValues(alpha: 0.75);
-    const textColor = AppColors.textPrimary;
     final borderColor = _focused
-        ? _neon.withValues(alpha: 0.95)
-        : _neonCore.withValues(alpha: 0.42);
-    final glow = _focused ? 20.0 : 14.0;
-    final glowOpacity = _focused ? 0.36 : 0.24;
+        ? AppColors.accentOf(context).withValues(alpha: 0.75)
+        : AppColors.borderOf(context);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       curve: Curves.easeOutCubic,
       decoration: BoxDecoration(
-        color: fill,
+        color: AppColors.surfaceOf(context),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: borderColor, width: _focused ? 1.5 : 1),
+        border: Border.all(color: borderColor, width: _focused ? 1.4 : 1),
         boxShadow: [
           BoxShadow(
-            color: _neonCore.withValues(alpha: glowOpacity),
-            blurRadius: glow,
-            spreadRadius: 0,
-            offset: const Offset(0, 2),
+            color: _focused
+                ? AppColors.accentOf(context).withValues(alpha: 0.16)
+                : AppColors.shadowOf(context, alpha: 0.45),
+            blurRadius: _focused ? 16 : 12,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -175,7 +154,11 @@ class _ArtyugSearchBarState extends State<ArtyugSearchBar> {
               children: [
                 Padding(
                   padding: const EdgeInsets.only(left: 12, right: 4),
-                  child: Icon(Icons.search_rounded, color: iconColor, size: 22),
+                  child: Icon(
+                    Icons.search_rounded,
+                    color: AppColors.textMutedOf(context),
+                    size: 21,
+                  ),
                 ),
                 Expanded(
                   child: TextField(
@@ -188,14 +171,14 @@ class _ArtyugSearchBarState extends State<ArtyugSearchBar> {
                     onSubmitted: widget.onSubmitted,
                     textInputAction: TextInputAction.search,
                     style: TextStyle(
-                      color: textColor,
+                      color: AppColors.textPrimaryOf(context),
                       fontSize: 15,
                       fontWeight: FontWeight.w500,
                     ),
                     decoration: InputDecoration(
                       hintText: widget.hintText,
                       hintStyle: TextStyle(
-                        color: hintColor,
+                        color: AppColors.textMutedOf(context),
                         fontSize: 14,
                         fontWeight: FontWeight.w400,
                       ),
@@ -217,7 +200,7 @@ class _ArtyugSearchBarState extends State<ArtyugSearchBar> {
                             visualDensity: VisualDensity.compact,
                             icon: Icon(
                               Icons.close_rounded,
-                              color: iconColor,
+                              color: AppColors.textMutedOf(context),
                               size: 20,
                             ),
                             onPressed: () {
@@ -235,3 +218,4 @@ class _ArtyugSearchBarState extends State<ArtyugSearchBar> {
     );
   }
 }
+

@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 
 class MarketplaceMediaFrame extends StatelessWidget {
+  static const String sampleImageUrl =
+      'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?auto=format&fit=crop&w=1200&q=80';
   final String imageUrl;
   final double aspectRatio;
   final BorderRadius borderRadius;
@@ -47,7 +49,8 @@ class MarketplaceMediaFrame extends StatelessWidget {
               imageUrl: url,
               fit: BoxFit.cover,
               placeholder: (_, __) => const MarketplaceShimmer(),
-              errorWidget: (_, __, ___) => const _MediaFallback(),
+              errorWidget: (_, __, ___) =>
+                  const _MediaFallback(showSampleLabel: true),
             ),
             if (showGradientOverlay)
               const DecoratedBox(
@@ -117,32 +120,49 @@ class _MarketplaceShimmerState extends State<MarketplaceShimmer>
 }
 
 class _MediaFallback extends StatelessWidget {
-  const _MediaFallback();
+  final bool showSampleLabel;
+
+  const _MediaFallback({this.showSampleLabel = true});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: AppColors.surfaceMutedOf(context),
-      alignment: Alignment.center,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.image_not_supported_outlined,
-            color: AppColors.textTertiaryOf(context),
-            size: 30,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Artwork unavailable',
-            style: TextStyle(
-              color: AppColors.textSecondaryOf(context),
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Image.network(
+          MarketplaceMediaFrame.sampleImageUrl,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => Container(
+            color: AppColors.surfaceMutedOf(context),
+            alignment: Alignment.center,
+            child: Icon(
+              Icons.image_not_supported_outlined,
+              color: AppColors.textTertiaryOf(context),
+              size: 28,
             ),
           ),
-        ],
-      ),
+        ),
+        if (showSampleLabel)
+          Positioned(
+            left: 10,
+            bottom: 10,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.58),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: const Text(
+                'Sample image',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/theme/app_colors.dart';
@@ -10,6 +11,7 @@ import '../feed/marketplace_media.dart';
 class PaintingCard extends StatefulWidget {
   final PaintingModel painting;
   final VoidCallback? onLike;
+  final VoidCallback? onTap;
   final bool isLiked;
   final bool showBuyButton;
 
@@ -17,6 +19,7 @@ class PaintingCard extends StatefulWidget {
     super.key,
     required this.painting,
     this.onLike,
+    this.onTap,
     this.isLiked = false,
     this.showBuyButton = true,
   });
@@ -52,7 +55,10 @@ class _PaintingCardState extends State<PaintingCard> {
         ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
-          onTap: () => context.push('/artwork/${painting.id}', extra: painting),
+          onTap: () {
+            widget.onTap?.call();
+            context.push('/artwork/${painting.id}', extra: painting);
+          },
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -122,6 +128,21 @@ class _PaintingCardState extends State<PaintingCard> {
                   ),
                 ),
               ),
+              if ((painting.description ?? '').trim().isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+                  child: Text(
+                    painting.description!.trim(),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: AppColors.textSecondaryOf(context),
+                      fontSize: 12.5,
+                      height: 1.35,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
                 child: Row(
@@ -194,12 +215,18 @@ class _CreatorPill extends StatelessWidget {
           CircleAvatar(
             radius: 8,
             backgroundColor: AppColors.surfaceHigh,
-            backgroundImage: avatarUrl != null && avatarUrl!.isNotEmpty
+            foregroundImage: avatarUrl != null && avatarUrl!.isNotEmpty
                 ? CachedNetworkImageProvider(avatarUrl!)
                 : null,
-            child: avatarUrl == null || avatarUrl!.isEmpty
-                ? const Icon(Icons.person, size: 11, color: AppColors.textSecondary)
-                : null,
+            child: Text(
+              (name.trim().isNotEmpty ? name.trim().substring(0, 1) : 'A')
+                  .toUpperCase(),
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                color: AppColors.textSecondary,
+              ),
+            ),
           ),
           const SizedBox(width: 6),
           Flexible(
@@ -271,7 +298,10 @@ class _ActionIcon extends StatelessWidget {
     final muted = AppColors.textSecondaryOf(menuContext);
     return InkWell(
       borderRadius: BorderRadius.circular(999),
-      onTap: onTap,
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap?.call();
+      },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
         child: Row(
@@ -306,7 +336,10 @@ class _PrimaryPillButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: onTap,
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
       borderRadius: BorderRadius.circular(999),
       child: Ink(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),

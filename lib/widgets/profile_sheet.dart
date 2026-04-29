@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/supabase_media_url.dart';
 import '../../providers/auth_provider.dart';
 
 /// Shows the profile bottom sheet.
@@ -75,8 +76,9 @@ class _ProfileSheetState extends State<_ProfileSheet> {
         user?.userMetadata?['full_name'] as String? ??
         'Artyug User';
     final email = user?.email ?? '';
-    final avatarUrl = _profile?['profile_picture_url'] as String? ??
-        user?.userMetadata?['avatar_url'] as String?;
+    final avatarRaw = (_profile?['profile_picture_url'] as String?) ??
+        (user?.userMetadata?['avatar_url'] as String?);
+    final avatarUrl = SupabaseMediaUrl.resolve(avatarRaw);
     final artistType = _profile?['artist_type'] as String?;
     final isVerified = _profile?['is_verified'] as bool? ?? false;
     final isPremium = (_profile?['plan'] as String?) == 'premium';
@@ -125,10 +127,10 @@ class _ProfileSheetState extends State<_ProfileSheet> {
                                   radius: 44,
                                   backgroundColor:
                                       AppColors.primary.withValues(alpha: 0.2),
-                                  backgroundImage: avatarUrl != null
+                                  foregroundImage: avatarUrl.isNotEmpty
                                       ? CachedNetworkImageProvider(avatarUrl)
                                       : null,
-                                  child: avatarUrl == null
+                                  child: avatarUrl.isEmpty
                                       ? Text(
                                           name.isNotEmpty ? name[0].toUpperCase() : '?',
                                           style: const TextStyle(
@@ -452,14 +454,48 @@ class _ActionItem {
 
 /// Compact avatar widget for top-right of AppBar / Shell header.
 /// Tap → opens the profile sheet.
-class ProfileAvatarButton extends StatelessWidget {
+class ProfileAvatarButton extends StatefulWidget {
   final double radius;
   const ProfileAvatarButton({super.key, this.radius = 17});
 
   @override
+  State<ProfileAvatarButton> createState() => _ProfileAvatarButtonState();
+}
+
+class _ProfileAvatarButtonState extends State<ProfileAvatarButton> {
+  String _profileAvatar = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfileAvatar();
+  }
+
+  Future<void> _loadProfileAvatar() async {
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    if (uid == null) return;
+    try {
+      final row = await Supabase.instance.client
+          .from('profiles')
+          .select('profile_picture_url')
+          .eq('id', uid)
+          .maybeSingle();
+      if (!mounted) return;
+      setState(() {
+        _profileAvatar = SupabaseMediaUrl.resolve(
+          row?['profile_picture_url']?.toString(),
+        );
+      });
+    } catch (_) {}
+  }
+
+  @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
-    final avatarUrl = auth.user?.userMetadata?['avatar_url'] as String?;
+    final metadataAvatar = SupabaseMediaUrl.resolve(
+      auth.user?.userMetadata?['avatar_url'] as String?,
+    );
+    final avatarUrl = _profileAvatar.isNotEmpty ? _profileAvatar : metadataAvatar;
     final name = auth.user?.userMetadata?['full_name'] as String? ?? '';
 
     return GestureDetector(
@@ -468,16 +504,17 @@ class ProfileAvatarButton extends StatelessWidget {
         clipBehavior: Clip.none,
         children: [
           CircleAvatar(
-            radius: radius,
+            radius: widget.radius,
             backgroundColor: AppColors.primary.withValues(alpha: 0.18),
-            backgroundImage:
-                avatarUrl != null ? CachedNetworkImageProvider(avatarUrl) : null,
-            child: avatarUrl == null
+            foregroundImage: avatarUrl.isNotEmpty
+                ? CachedNetworkImageProvider(avatarUrl)
+                : null,
+            child: avatarUrl.isEmpty
                 ? Text(
                     name.isNotEmpty ? name[0].toUpperCase() : '?',
                     style: TextStyle(
                       color: AppColors.primary,
-                      fontSize: radius * 0.85,
+                      fontSize: widget.radius * 0.85,
                       fontWeight: FontWeight.w800,
                     ),
                   )

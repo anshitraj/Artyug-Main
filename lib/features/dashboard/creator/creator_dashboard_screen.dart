@@ -1,6 +1,5 @@
-import 'dart:math' as math;
+﻿import 'dart:math' as math;
 
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -11,8 +10,9 @@ import '../../../models/order.dart';
 import '../../../models/painting.dart';
 import '../../../models/profile.dart';
 import '../../../providers/dashboard_provider.dart';
+import '../../../widgets/dashboard_background.dart';
 
-/// Creator studio — dense KPIs, 7-day revenue from real orders, chart + sales split on wide layouts.
+/// Creator studio â€” dense KPIs, 7-day revenue from real orders, chart + sales split on wide layouts.
 class CreatorDashboardScreen extends StatefulWidget {
   const CreatorDashboardScreen({super.key});
 
@@ -46,28 +46,25 @@ class _CreatorDashboardScreenState extends State<CreatorDashboardScreen> {
             style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, letterSpacing: 0.3)),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
-      body: Stack(
-        children: [
-          const _PremiumBackdrop(),
-          Consumer<DashboardProvider>(
-            builder: (context, dash, _) {
-              if (dash.loading && dash.stats == null) {
-                return const Center(
-                  child: CircularProgressIndicator(color: AppColors.primary),
-                );
-              }
-              if (dash.error != null && dash.stats == null) {
-                return Center(
-                  child: Text(
-                    dash.error!,
-                    style: const TextStyle(color: AppColors.error),
-                  ),
-                );
-              }
-              return _buildDashboard(dash);
-            },
-          ),
-        ],
+      body: DashboardBackground(
+        child: Consumer<DashboardProvider>(
+          builder: (context, dash, _) {
+            if (dash.loading && dash.stats == null) {
+              return const Center(
+                child: CircularProgressIndicator(color: AppColors.primary),
+              );
+            }
+            if (dash.error != null && dash.stats == null) {
+              return Center(
+                child: Text(
+                  dash.error!,
+                  style: const TextStyle(color: AppColors.error),
+                ),
+              );
+            }
+            return _buildDashboard(dash);
+          },
+        ),
       ),
     );
   }
@@ -77,7 +74,7 @@ class _CreatorDashboardScreenState extends State<CreatorDashboardScreen> {
     final profile = s.profile;
     final currency = NumberFormat.currency(
       locale: 'en_IN',
-      symbol: '₹',
+      symbol: '\u20B9',
       decimalDigits: 0,
     );
 
@@ -107,33 +104,11 @@ class _CreatorDashboardScreenState extends State<CreatorDashboardScreen> {
             sliver: SliverToBoxAdapter(
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final wide = constraints.maxWidth >= _wideBreakpoint;
-                  final buckets = _last7DaysRevenue(s.completedSales);
-                  final chart = _RevenueChartCard(buckets: buckets);
                   final salesPanel = _RecentSalesPanel(
                     orders: s.recentSales,
                     currency: currency,
                   );
-                  if (wide) {
-                    return IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Expanded(flex: 5, child: chart),
-                          const SizedBox(width: 16),
-                          Expanded(flex: 4, child: salesPanel),
-                        ],
-                      ),
-                    );
-                  }
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      chart,
-                      const SizedBox(height: 16),
-                      salesPanel,
-                    ],
-                  );
+                  return salesPanel;
                 },
               ),
             ),
@@ -144,14 +119,14 @@ class _CreatorDashboardScreenState extends State<CreatorDashboardScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const _SectionTitle('My Galleries'),
+                  const _SectionTitle('My Studios'),
                   const SizedBox(height: 12),
                   _QuickActionsRow(onUpload: () => context.push('/upload')),
                   const SizedBox(height: 10),
                   _QuickAccessCard(
                     icon: Icons.storefront_rounded,
-                    title: 'Manage Galleries',
-                    subtitle: 'Create, edit, or pause your galleries',
+                    title: 'Manage Studios',
+                    subtitle: 'Create, edit, or pause your studios',
                     onTap: () => context.push('/my-galleries'),
                   ),
                   const SizedBox(height: 10),
@@ -204,24 +179,6 @@ class _CreatorDashboardScreenState extends State<CreatorDashboardScreen> {
       ),
     );
   }
-}
-
-List<double> _last7DaysRevenue(List<OrderModel> completedSales) {
-  final now = DateTime.now();
-  final today = DateTime(now.year, now.month, now.day);
-  final start = today.subtract(const Duration(days: 6));
-  final buckets = List<double>.filled(7, 0);
-  for (final o in completedSales) {
-    final amt = o.amount;
-    final created = o.createdAt;
-    if (amt == null || created == null) continue;
-    final day = DateTime(created.year, created.month, created.day);
-    final idx = day.difference(start).inDays;
-    if (idx >= 0 && idx < 7) {
-      buckets[idx] += amt;
-    }
-  }
-  return buckets;
 }
 
 class _StudioHeader extends StatelessWidget {
@@ -417,7 +374,7 @@ class _KpiStrip extends StatelessWidget {
           ),
           _KpiTile(
             label: 'Reach',
-            value: '${_formatInt(followers)} · ${_formatInt(likes)}',
+            value: '$followers · $likes',
             sublabel: 'followers · likes',
             icon: Icons.insights_outlined,
           ),
@@ -448,11 +405,6 @@ class _KpiStrip extends StatelessWidget {
     );
   }
 
-  static String _formatInt(int n) {
-    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
-    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}k';
-    return '$n';
-  }
 }
 
 class _KpiTile extends StatelessWidget {
@@ -548,163 +500,6 @@ class _KpiTile extends StatelessWidget {
                 fontWeight: FontWeight.w500,
               ),
             ),
-        ],
-      ),
-    );
-  }
-}
-
-class _RevenueChartCard extends StatelessWidget {
-  final List<double> buckets;
-
-  const _RevenueChartCard({required this.buckets});
-
-  @override
-  Widget build(BuildContext context) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final start = today.subtract(const Duration(days: 6));
-    final labels = List.generate(7, (i) {
-      final d = start.add(Duration(days: i));
-      final short = DateFormat('EEE').format(d);
-      return short.length >= 2 ? short.substring(0, 2) : short;
-    });
-    final peak = buckets.fold<double>(0, (a, b) => math.max(a, b));
-    final maxY = math.max(1.0, peak * 1.15);
-    final hasData = buckets.any((v) => v > 0);
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceVariant,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Text(
-                'Last 7 days',
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                hasData ? 'Revenue by day' : 'No sales in range',
-                style: TextStyle(
-                  color: AppColors.textSecondary.withValues(alpha: 0.9),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            height: 200,
-            child: BarChart(
-              BarChartData(
-                alignment: BarChartAlignment.spaceAround,
-                maxY: maxY,
-                gridData: FlGridData(
-                  show: true,
-                  drawVerticalLine: false,
-                  horizontalInterval: maxY > 5 ? maxY / 4 : 1,
-                  getDrawingHorizontalLine: (v) => FlLine(
-                    color: AppColors.border.withValues(alpha: 0.5),
-                    strokeWidth: 1,
-                  ),
-                ),
-                borderData: FlBorderData(show: false),
-                titlesData: FlTitlesData(
-                  topTitles:
-                      const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles:
-                      const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 36,
-                      interval: maxY > 5 ? maxY / 4 : 1,
-                      getTitlesWidget: (v, m) => Text(
-                        v >= 1000
-                            ? '${(v / 1000).toStringAsFixed(0)}k'
-                            : v.toInt().toString(),
-                        style: TextStyle(
-                          color: AppColors.textTertiary.withValues(alpha: 0.85),
-                          fontSize: 9,
-                        ),
-                      ),
-                    ),
-                  ),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 22,
-                      getTitlesWidget: (v, m) {
-                        final i = v.toInt();
-                        if (i < 0 || i >= labels.length) {
-                          return const SizedBox.shrink();
-                        }
-                        final isToday = i == 6;
-                        return Padding(
-                          padding: const EdgeInsets.only(top: 6),
-                          child: Text(
-                            labels[i],
-                            style: TextStyle(
-                              color: isToday
-                                  ? AppColors.primary
-                                  : AppColors.textSecondary,
-                              fontSize: 10,
-                              fontWeight:
-                                  isToday ? FontWeight.w700 : FontWeight.w500,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-                barGroups: List.generate(7, (i) {
-                  final y = buckets[i];
-                  final isToday = i == 6;
-                  return BarChartGroupData(
-                    x: i,
-                    barRods: [
-                      BarChartRodData(
-                        toY: y,
-                        width: 14,
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(6),
-                        ),
-                        color: y <= 0
-                            ? Colors.transparent
-                            : (isToday
-                                ? AppColors.primary
-                                : AppColors.surfaceHigh),
-                        gradient: y <= 0 || isToday
-                            ? null
-                            : LinearGradient(
-                                begin: Alignment.bottomCenter,
-                                end: Alignment.topCenter,
-                                colors: [
-                                  AppColors.surfaceHigh,
-                                  AppColors.textTertiary
-                                      .withValues(alpha: 0.35),
-                                ],
-                              ),
-                      ),
-                    ],
-                  );
-                }),
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -1314,69 +1109,8 @@ class _QuickAccessCard extends StatelessWidget {
   }
 }
 
-class _PremiumBackdrop extends StatelessWidget {
-  const _PremiumBackdrop();
 
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        color: AppColors.background,
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            top: -120,
-            left: -80,
-            child: _GlowOrb(
-              size: 320,
-              color: AppColors.primary.withValues(alpha: 0.2),
-            ),
-          ),
-          Positioned(
-            top: 180,
-            right: -100,
-            child: _GlowOrb(
-              size: 280,
-              color: const Color(0xFF3C6BFF).withValues(alpha: 0.14),
-            ),
-          ),
-          Positioned(
-            bottom: -120,
-            left: 40,
-            child: _GlowOrb(
-              size: 260,
-              color: const Color(0xFF0FD3A5).withValues(alpha: 0.1),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
-class _GlowOrb extends StatelessWidget {
-  final double size;
-  final Color color;
 
-  const _GlowOrb({required this.size, required this.color});
 
-  @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: RadialGradient(
-            colors: [
-              color,
-              color.withValues(alpha: 0),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
+

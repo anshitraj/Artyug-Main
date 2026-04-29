@@ -304,7 +304,20 @@ class _ShopScreenState extends State<ShopScreen> {
         break;
     }
 
-    setState(() => _filtered = list);
+    final primaryRail = _sortBy == 'trending'
+        ? _sortByTrending(list)
+        : List<PaintingModel>.from(list);
+    final recentRail = List<PaintingModel>.from(list)
+      ..sort(
+        (a, b) =>
+            (b.createdAt ?? DateTime(1970)).compareTo(a.createdAt ?? DateTime(1970)),
+      );
+
+    setState(() {
+      _filtered = list;
+      _trending = primaryRail.take(10).toList();
+      _recent = recentRail.take(12).toList();
+    });
   }
 
   @override
@@ -613,10 +626,14 @@ class _ShopScreenState extends State<ShopScreen> {
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
           separatorBuilder: (_, __) => const SizedBox(width: 10),
           itemCount: artworks.length.clamp(0, 12),
-          itemBuilder: (_, i) => _ArtworkCard(
-            artwork: artworks[i],
-            currency: _currency,
-            onTap: () => context.push('/artwork/${artworks[i].id}', extra: artworks[i]),
+          itemBuilder: (_, i) => SizedBox(
+            width: 210,
+            child: _ArtworkCard(
+              artwork: artworks[i],
+              currency: _currency,
+              onTap: () =>
+                  context.push('/artwork/${artworks[i].id}', extra: artworks[i]),
+            ),
           ),
         ),
       ),
@@ -970,7 +987,45 @@ class _ArtworkCard extends StatelessWidget {
                 children: [
                   Text(artwork.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 3),
-                  Text(artwork.artistDisplayName ?? 'Artist', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 9,
+                        backgroundColor: AppColors.accentSoftOf(context),
+                        foregroundImage: artwork.resolvedArtistAvatarUrl != null &&
+                                artwork.resolvedArtistAvatarUrl!.trim().isNotEmpty
+                            ? CachedNetworkImageProvider(
+                                artwork.resolvedArtistAvatarUrl!,
+                              )
+                            : null,
+                        child: Text(
+                          ((artwork.artistDisplayName ?? 'A').trim().isNotEmpty
+                                  ? (artwork.artistDisplayName ?? 'A')
+                                      .trim()
+                                      .substring(0, 1)
+                                  : 'A')
+                              .toUpperCase(),
+                          style: const TextStyle(
+                            color: AppColors.primary,
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'by ${artwork.artistDisplayName ?? 'Artist'}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 6),
                   Row(
                     children: [

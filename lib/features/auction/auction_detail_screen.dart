@@ -198,7 +198,7 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen>
     final auction = _auction;
     if (auction == null) return;
     if (!auction.isActive) {
-      _showSnack('This auction is not accepting bids right now.');
+      _showSnack('Bidding is currently disabled due to demand.');
       return;
     }
     if (amt < auction.minimumNextBid) {
@@ -411,7 +411,8 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen>
 
   Widget _buildCountdownHeader(AuctionModel auction) {
     final r = _timeRemaining;
-    final ended = r == Duration.zero;
+    final canAcceptBids = auction.isActive && r > Duration.zero;
+    final ended = !canAcceptBids;
     final highBid = auction.currentHighestBid;
     final minNext = auction.minimumNextBid;
 
@@ -503,7 +504,7 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen>
           ],
 
           // Bids action area
-          if (!ended) ...[
+          if (canAcceptBids) ...[
             const SizedBox(height: 12),
             _BidInputRow(
               controller: _bidController,
@@ -511,6 +512,25 @@ class _AuctionDetailScreenState extends State<AuctionDetailScreen>
               currency: _currency,
               loading: _placingBid,
               onBid: _placeBid,
+            ),
+          ] else ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: const Text(
+                'Bidding is currently disabled due to demand.',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ],
         ],

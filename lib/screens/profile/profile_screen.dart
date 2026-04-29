@@ -6,6 +6,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/analytics_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Profile Screen — My Profile
@@ -26,6 +27,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   Map<String, dynamic>? _profile;
   List<Map<String, dynamic>> _paintings = [];
   List<Map<String, dynamic>> _threads = [];
+  Map<String, dynamic>? _studio;
   bool _loading = true;
   String _activeTab = 'gallery';
   int _followersCount = 0;
@@ -35,6 +37,24 @@ class _ProfileScreenState extends State<ProfileScreen>
   void initState() {
     super.initState();
     _loadProfile();
+  }
+
+  Future<void> _openUploadAndRefresh() async {
+    await context.push('/upload');
+    if (!mounted) return;
+    final user = Provider.of<AuthProvider>(context, listen: false).user;
+    if (user == null) return;
+    setState(() {
+      _activeTab = 'gallery';
+      _loading = true;
+    });
+    await Future.wait([
+      _fetchPaintings(user.id),
+      _fetchThreads(user.id),
+      _fetchStudio(user.id),
+    ]);
+    if (!mounted) return;
+    setState(() => _loading = false);
   }
 
   Future<void> _loadProfile() async {
@@ -49,6 +69,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       _fetchPaintings(user.id),
       _fetchThreads(user.id),
       _fetchFollowStats(user.id),
+      _fetchStudio(user.id),
     ]);
   }
 
@@ -104,6 +125,20 @@ class _ProfileScreenState extends State<ProfileScreen>
         _followersCount = (followers as List).length;
         _followingCount = (following as List).length;
       });
+    } catch (_) {}
+  }
+
+  Future<void> _fetchStudio(String userId) async {
+    try {
+      final row = await _supabase
+          .from('shops')
+          .select('id, name, slug, description, is_active')
+          .eq('owner_id', userId)
+          .eq('is_active', true)
+          .order('created_at', ascending: false)
+          .maybeSingle();
+      if (!mounted) return;
+      setState(() => _studio = row == null ? null : Map<String, dynamic>.from(row));
     } catch (_) {}
   }
 
@@ -382,7 +417,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                       if (role == 'creator')
                         Expanded(
                           child: ElevatedButton.icon(
-                            onPressed: () => context.push('/upload'),
+                            onPressed: _openUploadAndRefresh,
                             icon: const Icon(Icons.add, size: 16),
                             label: const Text('Upload Art'),
                             style: ElevatedButton.styleFrom(
@@ -400,6 +435,64 @@ class _ProfileScreenState extends State<ProfileScreen>
 
                   const SizedBox(height: 20),
 
+
+                  if (role == 'creator') ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceOf(context),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppColors.borderOf(context)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.storefront_rounded, color: AppColors.primary),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _studio?['name']?.toString() ?? 'Your Studio',
+                                  style: TextStyle(
+                                    color: AppColors.textPrimaryOf(context),
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  _studio == null
+                                      ? 'Set up and showcase your collections'
+                                      : 'Collections and featured works',
+                                  style: TextStyle(
+                                    color: AppColors.textSecondaryOf(context),
+                                    fontSize: 12.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              final slug = _studio?['slug']?.toString();
+                              AnalyticsService.track('studio_enter_tap', params: {
+                                'surface': 'profile',
+                                'slug': slug ?? '',
+                              });
+                              if (slug != null && slug.isNotEmpty) {
+                                context.push('/shop/$slug');
+                              } else {
+                                context.push('/my-galleries');
+                              }
+                            },
+                            child: const Text('Enter Studio'),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                   // ── Tabs ─────────────────────────────────────────────
                   Container(
                     padding: const EdgeInsets.all(4),
@@ -452,7 +545,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             title: 'No artworks yet',
             subtitle: 'Upload your first piece to start your gallery',
             action: ElevatedButton.icon(
-              onPressed: () => context.push('/upload'),
+              onPressed: _openUploadAndRefresh,
               icon: const Icon(Icons.add, size: 16),
               label: const Text('Upload Artwork'),
             ),
@@ -554,7 +647,7 @@ class _TabBtn extends StatelessWidget {
             boxShadow: active
                 ? [
                     BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.06),
+                        color: AppColors.shadowOf(context, alpha: 0.5),
                         blurRadius: 4,
                         offset: const Offset(0, 1))
                   ]
@@ -788,32 +881,40 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 40),
-      child: Column(
-        children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              color: AppColors.surfaceMutedOf(context),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: AppColors.textSecondaryOf(context), size: 28),
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 16),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceMutedOf(context),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: AppColors.textSecondaryOf(context), size: 28),
+              ),
+              const SizedBox(height: 16),
+              Text(title,
+                  style: TextStyle(
+                      color: AppColors.textPrimaryOf(context),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700),
+                  textAlign: TextAlign.center),
+              const SizedBox(height: 6),
+              Text(subtitle,
+                  style: TextStyle(
+                      color: AppColors.textSecondaryOf(context), fontSize: 13),
+                  textAlign: TextAlign.center),
+              if (action != null) ...[const SizedBox(height: 20), action!],
+            ],
           ),
-          const SizedBox(height: 16),
-          Text(title,
-              style: TextStyle(
-                  color: AppColors.textPrimaryOf(context),
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700)),
-          const SizedBox(height: 6),
-          Text(subtitle,
-              style: TextStyle(
-                  color: AppColors.textSecondaryOf(context), fontSize: 13),
-              textAlign: TextAlign.center),
-          if (action != null) ...[const SizedBox(height: 20), action!],
-        ],
+        ),
       ),
     );
   }

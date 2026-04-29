@@ -51,14 +51,14 @@ class _ExploreScreenState extends State<ExploreScreen> {
   String? _loadError;
 
   final _categories = [
-    {'id': 'all', 'name': 'All', 'emoji': 'A'},
-    {'id': 'painting', 'name': 'Painting', 'emoji': 'P'},
-    {'id': 'digital', 'name': 'Digital', 'emoji': 'D'},
-    {'id': 'photography', 'name': 'Photography', 'emoji': 'Ph'},
-    {'id': 'sculpture', 'name': 'Sculpture', 'emoji': 'S'},
-    {'id': 'drawing', 'name': 'Drawing', 'emoji': 'Dr'},
-    {'id': 'print', 'name': 'Print', 'emoji': 'Pr'},
-    {'id': 'other', 'name': 'Other', 'emoji': 'O'},
+    {'id': 'all', 'name': 'All', 'emoji': '✨'},
+    {'id': 'painting', 'name': 'Painting', 'emoji': '🎨'},
+    {'id': 'digital', 'name': 'Digital', 'emoji': '💠'},
+    {'id': 'photography', 'name': 'Photography', 'emoji': '📷'},
+    {'id': 'sculpture', 'name': 'Sculpture', 'emoji': '🗿'},
+    {'id': 'drawing', 'name': 'Drawing', 'emoji': '✏️'},
+    {'id': 'print', 'name': 'Print', 'emoji': '🖼️'},
+    {'id': 'other', 'name': 'Other', 'emoji': '🧩'},
   ];
 
   @override
@@ -131,7 +131,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
       final res = await _supabase
           .from('profiles')
           .select(
-              'id, username, display_name, profile_picture_url, artist_type')
+              'id, username, display_name, profile_picture_url, avatar_url, artist_type, is_verified')
           .order('created_at', ascending: false)
           .limit(10);
       setState(() {
@@ -211,7 +211,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
       final res = await _supabase
           .from('profiles')
           .select(
-              'id, username, display_name, profile_picture_url, artist_type')
+              'id, username, display_name, profile_picture_url, avatar_url, artist_type, is_verified')
           .or('username.ilike.%$term%,display_name.ilike.%$term%')
           .limit(20);
       setState(() {
@@ -366,8 +366,14 @@ class _ExploreScreenState extends State<ExploreScreen> {
                             )
                           : null,
                     ),
+                    const SizedBox(height: 10),
+                    _ExploreMarketplaceHero(
+                      onUpload: () => context.push('/upload'),
+                    ),
+                    const SizedBox(height: 10),
+                    _ExploreQuickActions(embedInShell: widget.embedInShell),
 
-                    // ── Search results ────────────────────────────────
+                    // Search results ────────────────────────────────
                     if (showSearch) ...[
                       const SizedBox(height: 12),
                       if (_searchResults.isEmpty && !_searching)
@@ -785,35 +791,60 @@ class _ArtistPill extends StatelessWidget {
     final name = artist['display_name'] ?? artist['username'] ?? 'Artist';
     final initial = name[0].toUpperCase();
     final avatarUrl = SupabaseMediaUrl.resolve(
-      artist['profile_picture_url'] as String?,
+      (artist['profile_picture_url'] ?? artist['avatar_url']) as String?,
     );
+    final isVerified = artist['is_verified'] == true ||
+        artist['artist_is_verified'] == true;
 
     return GestureDetector(
       onTap: () => context.push('/public-profile/${artist['id']}'),
       child: Column(children: [
-        Container(
-          width: 60,
-          height: 60,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: AppColors.primary.withValues(alpha: 0.1),
-            border: Border.all(
-                color: AppColors.primary.withValues(alpha: 0.2), width: 2),
-          ),
-          child: avatarUrl.isNotEmpty
-              ? ClipOval(
-                  child: CachedNetworkImage(
-                    imageUrl: avatarUrl,
-                    fit: BoxFit.cover,
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.primary.withValues(alpha: 0.1),
+                border: Border.all(
+                    color: AppColors.primary.withValues(alpha: 0.2), width: 2),
+              ),
+              child: avatarUrl.isNotEmpty
+                  ? ClipOval(
+                      child: CachedNetworkImage(
+                        imageUrl: avatarUrl,
+                        fit: BoxFit.cover,
+                      ),
+                    )
+                  : Center(
+                      child: Text(initial,
+                          style: const TextStyle(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 20)),
+                    ),
+            ),
+            if (isVerified)
+              Positioned(
+                right: -1,
+                bottom: -1,
+                child: Container(
+                  width: 18,
+                  height: 18,
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceOf(context),
+                    shape: BoxShape.circle,
                   ),
-                )
-              : Center(
-                  child: Text(initial,
-                      style: const TextStyle(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 20)),
+                  child: const Icon(
+                    Icons.verified_rounded,
+                    size: 16,
+                    color: AppColors.info,
+                  ),
                 ),
+              ),
+          ],
         ),
         const SizedBox(height: 6),
         SizedBox(
@@ -842,9 +873,11 @@ class _ArtistRow extends StatelessWidget {
     final name = artist['display_name'] ?? artist['username'] ?? 'Artist';
     final initial = name[0].toUpperCase();
     final avatarUrl = SupabaseMediaUrl.resolve(
-      artist['profile_picture_url'] as String?,
+      (artist['profile_picture_url'] ?? artist['avatar_url']) as String?,
     );
     final type = artist['artist_type'] as String? ?? '';
+    final isVerified = artist['is_verified'] == true ||
+        artist['artist_is_verified'] == true;
 
     return GestureDetector(
       onTap: () => context.push('/public-profile/${artist['id']}'),
@@ -878,11 +911,27 @@ class _ArtistRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name,
-                    style: TextStyle(
-                        color: AppColors.textPrimaryOf(context),
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14)),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              color: AppColors.textPrimaryOf(context),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14)),
+                    ),
+                    if (isVerified) ...[
+                      const SizedBox(width: 5),
+                      const Icon(
+                        Icons.verified_rounded,
+                        size: 15,
+                        color: AppColors.info,
+                      ),
+                    ],
+                  ],
+                ),
                 if (type.isNotEmpty)
                   Text(type,
                       style: TextStyle(
@@ -1009,3 +1058,111 @@ class _ArtworkCard extends StatelessWidget {
   }
 }
 
+
+
+class _ExploreQuickActions extends StatelessWidget {
+  final bool embedInShell;
+
+  const _ExploreQuickActions({required this.embedInShell});
+
+  @override
+  Widget build(BuildContext context) {
+    Widget chip(IconData icon, String label, VoidCallback onTap) {
+      return InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceOf(context).withValues(alpha: 0.45),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: AppColors.borderOf(context)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 14, color: AppColors.textSecondaryOf(context)),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: AppColors.textSecondaryOf(context),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          chip(Icons.people_alt_rounded, 'Artists', () => context.push('/search?q=artist')),
+          const SizedBox(width: 8),
+          chip(Icons.storefront_rounded, 'Studios', () => context.push('/shop')),
+          const SizedBox(width: 8),
+          chip(Icons.gavel_rounded, 'Auctions', () => context.push('/auctions')),
+          const SizedBox(width: 8),
+          chip(Icons.verified_user_rounded, 'Authenticity', () => context.push('/authenticity-center')),
+          const SizedBox(width: 8),
+          chip(Icons.nfc_rounded, 'NFC Scan', () => context.push('/nfc-scan')),
+        ],
+      ),
+    );
+  }
+}
+
+class _ExploreMarketplaceHero extends StatelessWidget {
+  final VoidCallback onUpload;
+
+  const _ExploreMarketplaceHero({required this.onUpload});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceOf(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.borderOf(context)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Discover Digital Collectibles on Artyug',
+            style: TextStyle(
+              color: AppColors.textPrimaryOf(context),
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              height: 1.2,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'A premium marketplace for verified creators, authenticated artworks, and high-intent collectors.',
+            style: TextStyle(
+              color: AppColors.textSecondaryOf(context),
+              fontSize: 13,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: onUpload,
+              icon: const Icon(Icons.upload_rounded, size: 18),
+              label: const Text('List Artwork'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

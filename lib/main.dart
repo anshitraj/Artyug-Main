@@ -13,6 +13,7 @@ import 'providers/feed_provider.dart';
 import 'providers/dashboard_provider.dart';
 import 'providers/app_mode_provider.dart';
 import 'providers/main_tab_provider.dart';
+import 'providers/feed_view_mode_provider.dart';
 import 'router/app_router.dart';
 import 'services/gemini_ai_service.dart';
 import 'services/notifications/notification_service.dart';
@@ -168,6 +169,7 @@ class _ArtyugAppState extends State<ArtyugApp> {
         ChangeNotifierProvider(create: (_) => DashboardProvider()),
         ChangeNotifierProvider(create: (_) => AppModeProvider()),
         ChangeNotifierProvider(create: (_) => MainTabProvider()),
+        ChangeNotifierProvider(create: (_) => FeedViewModeProvider()),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, _) {

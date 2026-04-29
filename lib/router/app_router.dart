@@ -312,7 +312,14 @@ class AppRouter {
             }),
         GoRoute(
             path: '/nfc-scan',
-            builder: (context, state) => const NfcScanScreen()),
+            builder: (context, state) {
+              final extra = state.extra;
+              final map = extra is Map<String, dynamic> ? extra : const <String, dynamic>{};
+              return NfcScanScreen(
+                returnPayloadOnly: map['returnPayloadOnly'] == true,
+                preferredPayload: map['preferredPayload']?.toString(),
+              );
+            }),
 
         // ── Events & Guild ────────────────────────────────────────────────────
         GoRoute(

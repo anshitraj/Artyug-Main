@@ -39,6 +39,8 @@ class AuthProvider with ChangeNotifier {
 
   Future<void> _initAuth() async {
     try {
+      await _finalizePendingWebOAuth();
+
       final sessionUser = _supabase.auth.currentUser;
       final session = _supabase.auth.currentSession;
 
@@ -91,6 +93,29 @@ class AuthProvider with ChangeNotifier {
       debugPrint('[Auth] initAuth error: $e');
       _loading = false;
       notifyListeners();
+    }
+  }
+
+  /// Web-only: ensure `?code=` OAuth callback is exchanged into a session before
+  /// we run timeout logic / redirect guards.
+  Future<void> _finalizePendingWebOAuth() async {
+    if (!kIsWeb) return;
+    final uri = oauthBrowserUri();
+    final hasCode = uri.queryParameters.containsKey('code');
+    final hasTokenFragment = uri.fragment.contains('access_token=');
+    final hasError = uri.queryParameters.containsKey('error') ||
+        uri.queryParameters.containsKey('error_description');
+    if (!hasCode && !hasTokenFragment && !hasError) return;
+    if (_supabase.auth.currentSession != null) {
+      oauthStripQueryParamsIfOAuthPresent();
+      return;
+    }
+    try {
+      await _supabase.auth.getSessionFromUrl(uri);
+    } catch (e) {
+      debugPrint('[Auth] getSessionFromUrl failed in AuthProvider: $e');
+    } finally {
+      oauthStripQueryParamsIfOAuthPresent();
     }
   }
 
@@ -287,9 +312,33 @@ class AuthProvider with ChangeNotifier {
   /// else [Uri.base.origin]. Mobile: must match deep link + Supabase redirect allow list.
   String get _oauthRedirectTo {
     if (kIsWeb) {
+      final current = oauthBrowserUri();
+      final currentOrigin = current.origin;
+      final stableSameOriginCallback = '$currentOrigin/';
       final configured = AppConfig.oauthRedirectUrl?.trim();
-      if (configured != null && configured.isNotEmpty) return configured;
-      return Uri.base.origin;
+      if (configured != null && configured.isNotEmpty) {
+        final parsed = Uri.tryParse(configured);
+        if (parsed != null &&
+            (parsed.scheme == 'http' || parsed.scheme == 'https') &&
+            parsed.host.isNotEmpty) {
+          return configured;
+        }
+        debugPrint(
+          '[Auth] Ignoring invalid OAUTH_REDIRECT_URL: $configured',
+        );
+      }
+
+      final publicSite = AppConfig.publicSiteUrl?.trim();
+      if (publicSite != null && publicSite.isNotEmpty) {
+        final parsed = Uri.tryParse(publicSite);
+        if (parsed != null &&
+            (parsed.scheme == 'http' || parsed.scheme == 'https') &&
+            parsed.host.isNotEmpty) {
+          return parsed.replace(path: '/').toString();
+        }
+      }
+
+      return stableSameOriginCallback;
     }
     return 'artyug://login-callback';
   }
