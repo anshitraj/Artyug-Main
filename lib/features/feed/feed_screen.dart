@@ -574,7 +574,23 @@ class _FeedScreenState extends State<FeedScreen> {
                 SliverToBoxAdapter(
                   child: _FeaturedArtRail(
                     horizontalPadding: hPad,
-                    paintings: smartPaintings.take(10).toList(),
+                    paintings: () {
+                      // Pin "Nutan Labh" artworks first in the featured rail
+                      const featuredArtist = 'nutan labh';
+                      final pinned = smartPaintings
+                          .where((p) =>
+                              (p.artistDisplayName ?? '')
+                                  .toLowerCase()
+                                  .contains(featuredArtist))
+                          .toList();
+                      final rest = smartPaintings
+                          .where((p) =>
+                              !(p.artistDisplayName ?? '')
+                                  .toLowerCase()
+                                  .contains(featuredArtist))
+                          .toList();
+                      return [...pinned, ...rest].take(10).toList();
+                    }(),
                   ),
                 ),
                 SliverPersistentHeader(
@@ -1420,7 +1436,7 @@ class _EcosystemSplitFeed extends StatelessWidget {
         if (threads.isEmpty)
           const _MiniFeedEmpty(label: 'No threads yet. Ask creators to share their latest process.')
         else
-          _ThreadRail(
+          _ThreadGrid(
             paintings: threads,
             onLike: onLike,
             onTap: (id) => onArtworkTap?.call(id),
@@ -1473,12 +1489,13 @@ class _EcosystemSplitFeed extends StatelessWidget {
   }
 }
 
-class _ThreadRail extends StatelessWidget {
+// ── Thread Grid — 2 columns, bigger images, bio visible ─────────────────────
+class _ThreadGrid extends StatelessWidget {
   final List<PaintingModel> paintings;
   final ValueChanged<String> onLike;
   final ValueChanged<String>? onTap;
 
-  const _ThreadRail({
+  const _ThreadGrid({
     required this.paintings,
     required this.onLike,
     this.onTap,
@@ -1486,142 +1503,170 @@ class _ThreadRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 338,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: paintings.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
-        itemBuilder: (context, i) {
-          final p = paintings[i];
-          final description = (p.description ?? '').trim().isNotEmpty
-              ? p.description!.trim()
-              : '${(p.medium ?? '').trim()} ${(p.category ?? '').trim()}'.trim();
-          return SizedBox(
-            width: 265,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(14),
-              onTap: () {
-                onTap?.call(p.id);
-                context.push('/artwork/${p.id}', extra: p);
-              },
-              child: Container(
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceOf(context),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.borderOf(context)),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    MarketplaceMediaFrame(
-                      imageUrl: p.resolvedImageUrl,
-                      aspectRatio: 1.32,
-                      borderRadius: BorderRadius.zero,
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(10, 9, 10, 0),
-                      child: Text(
-                        p.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: AppColors.textPrimaryOf(context),
-                          fontWeight: FontWeight.w800,
-                          fontSize: 14,
-                        ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const spacing = 10.0;
+        final tileWidth = (constraints.maxWidth - spacing) / 2;
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: paintings.map((p) {
+            final bio = (p.description ?? '').trim().isNotEmpty
+                ? p.description!.trim()
+                : '${(p.medium ?? '').trim()} ${(p.category ?? '').trim()}'.trim();
+            return SizedBox(
+              width: tileWidth,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: () {
+                  onTap?.call(p.id);
+                  context.push('/artwork/${p.id}', extra: p);
+                },
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceOf(context),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.borderOf(context)),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Bigger image — nearly square
+                      MarketplaceMediaFrame(
+                        imageUrl: p.resolvedImageUrl,
+                        aspectRatio: 1.0,
+                        borderRadius: BorderRadius.zero,
                       ),
-                    ),
-                    if (description.isNotEmpty)
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(10, 5, 10, 0),
-                        child: Text(
-                          description,
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: AppColors.textSecondaryOf(context),
-                            fontSize: 11.5,
-                            height: 1.35,
-                          ),
-                        ),
-                      ),
-                    const Spacer(),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-                      child: Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 9,
-                            backgroundColor: AppColors.accentSoftOf(context),
-                            foregroundImage: p.resolvedArtistAvatarUrl != null &&
-                                    p.resolvedArtistAvatarUrl!.trim().isNotEmpty
-                                ? NetworkImage(p.resolvedArtistAvatarUrl!)
-                                : null,
-                            child: Text(
-                              ((p.artistDisplayName ?? 'A').trim().isNotEmpty
-                                      ? (p.artistDisplayName ?? 'A')
-                                          .trim()
-                                          .substring(0, 1)
-                                      : 'A')
-                                  .toUpperCase(),
-                              style: TextStyle(
-                                color: AppColors.accentOf(context),
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              p.createdAt == null ? 'Just now' : _relativeTime(p.createdAt!),
+                        padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Artwork title
+                            Text(
+                              p.title,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                color: AppColors.textTertiaryOf(context),
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimaryOf(context),
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13,
                               ),
                             ),
-                          ),
-                          InkWell(
-                            borderRadius: BorderRadius.circular(999),
-                            onTap: () => onLike(p.id),
-                            child: Row(
+                            const SizedBox(height: 4),
+                            // Artist row with avatar + name
+                            Row(
                               children: [
-                                Icon(
-                                  p.isLikedByMe
-                                      ? Icons.favorite_rounded
-                                      : Icons.favorite_border_rounded,
-                                  size: 15,
-                                  color: p.isLikedByMe
-                                      ? AppColors.primary
-                                      : AppColors.textSecondaryOf(context),
+                                CircleAvatar(
+                                  radius: 9,
+                                  backgroundColor: AppColors.accentSoftOf(context),
+                                  foregroundImage: p.resolvedArtistAvatarUrl != null &&
+                                          p.resolvedArtistAvatarUrl!.trim().isNotEmpty
+                                      ? NetworkImage(p.resolvedArtistAvatarUrl!)
+                                      : null,
+                                  child: Text(
+                                    ((p.artistDisplayName ?? 'A').trim().isNotEmpty
+                                            ? (p.artistDisplayName ?? 'A').trim().substring(0, 1)
+                                            : 'A')
+                                        .toUpperCase(),
+                                    style: TextStyle(
+                                      color: AppColors.accentOf(context),
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
                                 ),
-                                const SizedBox(width: 3),
+                                const SizedBox(width: 5),
+                                Expanded(
+                                  child: Text(
+                                    p.artistDisplayName ?? 'Artyug Artist',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: AppColors.textSecondaryOf(context),
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                if (p.artistIsVerified ?? false)
+                                  const Padding(
+                                    padding: EdgeInsets.only(left: 3),
+                                    child: Icon(
+                                      Icons.verified_rounded,
+                                      size: 12,
+                                      color: AppColors.info,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            // Bio / description
+                            if (bio.isNotEmpty) ...[
+                              const SizedBox(height: 5),
+                              Text(
+                                bio,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: AppColors.textSecondaryOf(context),
+                                  fontSize: 11,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 6),
+                            // Footer: time + likes
+                            Row(
+                              children: [
                                 Text(
-                                  '${p.likesCount}',
+                                  p.createdAt == null ? 'Just now' : _relativeTime(p.createdAt!),
                                   style: TextStyle(
-                                    color: AppColors.textSecondaryOf(context),
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.textTertiaryOf(context),
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const Spacer(),
+                                InkWell(
+                                  borderRadius: BorderRadius.circular(999),
+                                  onTap: () => onLike(p.id),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        p.isLikedByMe
+                                            ? Icons.favorite_rounded
+                                            : Icons.favorite_border_rounded,
+                                        size: 13,
+                                        color: p.isLikedByMe
+                                            ? AppColors.primary
+                                            : AppColors.textSecondaryOf(context),
+                                      ),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        '${p.likesCount}',
+                                        style: TextStyle(
+                                          color: AppColors.textSecondaryOf(context),
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-          );
-        },
-      ),
+            );
+          }).toList(),
+        );
+      },
     );
   }
 }

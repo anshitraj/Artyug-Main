@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/painting.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/app_mode_provider.dart';
 import '../../providers/feed_provider.dart';
 import '../../repositories/painting_repository.dart';
 import '../../repositories/order_repository.dart';
@@ -664,8 +665,9 @@ class _ActionZone extends StatelessWidget {
     }
   }
 
-  /// Live Razorpay → Solana mainnet memo attestation flow.
-  /// Runs only when ARTYUG_APP_MODE=live; chainMode auto-maps to mainnet.
+  /// Smart buy intent:
+  /// - Demo mode → routes to /checkout/{id} (CheckoutScreen handles demo wallet)
+  /// - Live mode → direct Razorpay → Solana mainnet memo attestation
   Future<void> _openBuyIntent(BuildContext ctx) async {
     final auth = ctx.read<AuthProvider>();
     if (!auth.isAuthenticated) {
@@ -681,6 +683,14 @@ class _ActionZone extends StatelessWidget {
       return;
     }
 
+    // In demo mode: delegate to CheckoutScreen which handles demo wallet
+    final isLive = ctx.read<AppModeProvider>().isLiveMode;
+    if (!isLive) {
+      ctx.push('/checkout/${painting.id}', extra: painting);
+      return;
+    }
+
+    // ── Live mode: Razorpay → Solana mainnet memo attestation ────────────────
     // Step 1: Show spinner while Edge Function creates the Razorpay order
     showDialog(
       context: ctx,
